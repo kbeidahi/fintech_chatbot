@@ -146,9 +146,6 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 AUTH_USER_MODEL = "accounts.User"
 
 # ── Optional LLM fallback ────────────────────────────────────────────────────
-OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
-OPENAI_BASE_URL = config("OPENAI_BASE_URL", default="https://openrouter.ai/api/v1")
-OPENAI_MODEL = config("OPENAI_MODEL", default="meta-llama/llama-3.3-8b-instruct:free")
 ANTHROPIC_API_KEY = config("ANTHROPIC_API_KEY", default="")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
