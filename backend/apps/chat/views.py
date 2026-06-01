@@ -63,7 +63,8 @@ class SendMessageView(APIView):
         )
 
         # Use multilingual engine with user context for actions
-        result = multilingual_engine.resolve(user_text, user=request.user)
+        pin = request.data.get('pin', '').strip()
+        result = multilingual_engine.resolve(user_text, user=request.user, pin=pin)
 
         bot_msg = Message.objects.create(
             session=session,

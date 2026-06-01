@@ -75,12 +75,27 @@ class TransactionListView(APIView):
         return Response(TransactionSerializer(txns, many=True).data)
 
 
+def verify_pin_or_error(user, request):
+    """Returns a Response error if PIN check fails, else None."""
+    pin = clean_text(request.data.get("pin", ""))
+    if not user.has_pin:
+        return Response({"error": "PIN not set. Please set your PIN first."}, status=403)
+    if not pin:
+        return Response({"error": "PIN required to confirm this operation."}, status=403)
+    if not user.check_pin(pin):
+        return Response({"error": "Incorrect PIN. Please try again."}, status=403)
+    return None
+
+
 class TransferView(APIView):
     """POST /api/wallet/transfer/"""
 
     permission_classes = (IsAuthenticated,)
 
     def post(self, request):
+        pin_err = verify_pin_or_error(request.user, request)
+        if pin_err: return pin_err
+
         username = clean_text(request.data.get("username"))
         amount = request.data.get("amount")
         description = clean_text(request.data.get("description"))
@@ -133,6 +148,8 @@ class PhoneTopupView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def post(self, request):
+        pin_err = verify_pin_or_error(request.user, request)
+        if pin_err: return pin_err
         phone = clean_text(request.data.get("phone"))
         amount = request.data.get("amount")
 
@@ -179,6 +196,8 @@ class BillPaymentView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def post(self, request):
+        pin_err = verify_pin_or_error(request.user, request)
+        if pin_err: return pin_err
         bill_type = clean_text(request.data.get("bill_type")) or "general"
         amount = request.data.get("amount")
         reference = clean_text(request.data.get("reference"))

@@ -100,6 +100,41 @@ class LoginView(TokenObtainPairView):
     permission_classes = (permissions.AllowAny,)
 
 
+class PinStatusView(generics.GenericAPIView):
+    """GET /api/auth/pin/status/ — check if user has set a PIN."""
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get(self, request):
+        return Response({"has_pin": request.user.has_pin})
+
+
+class SetPinView(generics.GenericAPIView):
+    """POST /api/auth/pin/set/ — set or change the 4-digit PIN."""
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request):
+        pin = str(request.data.get("pin", "")).strip()
+        if not pin.isdigit() or len(pin) != 4:
+            return Response(
+                {"error": "PIN must be exactly 4 digits."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        request.user.set_pin(pin)
+        return Response({"message": "PIN set successfully."})
+
+
+class VerifyPinView(generics.GenericAPIView):
+    """POST /api/auth/pin/verify/ — verify PIN without executing any action."""
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request):
+        pin = str(request.data.get("pin", "")).strip()
+        if request.user.check_pin(pin):
+            return Response({"valid": True})
+        return Response({"valid": False, "error": "Incorrect PIN."},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+
 class ProfileView(generics.RetrieveUpdateAPIView):
     """GET/PATCH /api/auth/profile/"""
     serializer_class = ProfileSerializer

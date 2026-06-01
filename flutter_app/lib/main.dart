@@ -531,15 +531,17 @@ class FinAssistApp extends StatefulWidget {
 }
 
 class _FinAssistAppState extends State<FinAssistApp> {
-  String _lang = 'ar'; // Default Arabic
+  String _lang = 'fr';
   String _screen = 'login';
+  int _tab = 0; // 0=chat, 1=wallet
 
   void _setLang(String l) => setState(() => _lang = l);
   void _nav(String s) => setState(() => _screen = s);
-  void _login() => _nav('chat');
-  void _logout() {
-    apiService.logout();
-    _nav('login');
+  void _logout() { apiService.logout(); _nav('login'); }
+
+  Future<void> _login() async {
+    final hasPin = await apiService.hasPinSet();
+    _nav(hasPin ? 'main' : 'pin_setup');
   }
 
   @override
@@ -554,14 +556,79 @@ class _FinAssistAppState extends State<FinAssistApp> {
     switch (_screen) {
       case 'register':
         return RegisterPage(lang: _lang, onLangChange: _setLang, onSuccess: _login, onLogin: () => _nav('login'));
-      case 'chat':
-        return ChatPage(lang: _lang, onLangChange: _setLang, onHistory: () => _nav('history'), onNewChat: () {}, onLogout: _logout);
       case 'history':
-        return HistoryPage(lang: _lang, onBack: () => _nav('chat'));
+        return HistoryPage(lang: _lang, onBack: () => _nav('main'));
+      case 'main':
+        return _MainShell(
+          lang: _lang,
+          tab: _tab,
+          onTabChange: (t) => setState(() => _tab = t),
+          onLangChange: _setLang,
+          onHistory: () => _nav('history'),
+          onLogout: _logout,
+        );
       default:
         return LoginPage(lang: _lang, onLangChange: _setLang, onSuccess: _login, onRegister: () => _nav('register'));
     }
   }
+}
+
+// ── Main shell with bottom navigation ─────────────────────────────────────────
+class _MainShell extends StatelessWidget {
+  final String lang;
+  final int tab;
+  final void Function(int) onTabChange;
+  final void Function(String) onLangChange;
+  final VoidCallback onHistory, onLogout;
+  const _MainShell({required this.lang, required this.tab, required this.onTabChange,
+    required this.onLangChange, required this.onHistory, required this.onLogout});
+
+  bool get _isAr => lang == 'ar';
+
+  @override
+  Widget build(BuildContext context) {
+    final pages = [
+      ChatPage(lang: lang, onLangChange: onLangChange, onHistory: onHistory, onNewChat: () {}, onLogout: onLogout),
+      WalletPage(lang: lang, onLogout: onLogout),
+    ];
+    return Scaffold(
+      backgroundColor: C.navy,
+      body: pages[tab],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: C.navyL,
+          border: Border(top: BorderSide(color: C.gold.withOpacity(0.2), width: 1)),
+        ),
+        child: SafeArea(
+          child: SizedBox(
+            height: 60,
+            child: Row(children: [
+              _NavItem(icon: Icons.chat_bubble_outline, label: _isAr ? 'المساعد' : lang == 'fr' ? 'Assistant' : 'Assistant',
+                selected: tab == 0, onTap: () => onTabChange(0)),
+              _NavItem(icon: Icons.account_balance_wallet_outlined, label: _isAr ? 'المحفظة' : lang == 'fr' ? 'Portefeuille' : 'Wallet',
+                selected: tab == 1, onTap: () => onTabChange(1)),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final IconData icon; final String label; final bool selected; final VoidCallback onTap;
+  const _NavItem({required this.icon, required this.label, required this.selected, required this.onTap});
+  @override
+  Widget build(BuildContext context) => Expanded(child: GestureDetector(
+    onTap: onTap,
+    behavior: HitTestBehavior.opaque,
+    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      Icon(icon, color: selected ? C.gold : C.muted, size: 22),
+      const SizedBox(height: 3),
+      Text(label, style: GoogleFonts.dmSans(color: selected ? C.gold : C.muted,
+        fontSize: 11, fontWeight: selected ? FontWeight.w700 : FontWeight.normal)),
+    ]),
+  ));
 }
 
 // ── Background ────────────────────────────────────────────────────────────────
@@ -619,6 +686,205 @@ class GoldBtn extends StatelessWidget {
 }
 
 // Simple text field used inside the forgot-password dialog
+// ══════════════════════════════════════════════════════════════════════════════
+// PIN PAD WIDGET
+// ══════════════════════════════════════════════════════════════════════════════
+class _PinPad extends StatefulWidget {
+  final String title, subtitle;
+  final void Function(String pin) onCompleted;
+  final VoidCallback? onCancel;
+  const _PinPad({required this.title, required this.subtitle,
+    required this.onCompleted, this.onCancel});
+  @override State<_PinPad> createState() => _PinPadState();
+}
+
+class _PinPadState extends State<_PinPad> {
+  String _pin = '';
+  bool _shake = false;
+
+  void _onKey(String k) {
+    if (_pin.length >= 4) return;
+    setState(() => _pin += k);
+    if (_pin.length == 4) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        widget.onCompleted(_pin);
+      });
+    }
+  }
+
+  void _onDelete() {
+    if (_pin.isNotEmpty) setState(() => _pin = _pin.substring(0, _pin.length - 1));
+  }
+
+  void shake() => setState(() { _shake = true; Future.delayed(const Duration(milliseconds: 500), () { if (mounted) setState(() { _shake = false; _pin = ''; }); }); });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+      decoration: BoxDecoration(
+        color: C.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 40, height: 4, decoration: BoxDecoration(color: C.muted.withOpacity(0.3), borderRadius: BorderRadius.circular(2))),
+        const SizedBox(height: 20),
+        Container(width: 48, height: 48,
+          decoration: BoxDecoration(color: C.gold.withOpacity(0.12), borderRadius: BorderRadius.circular(14)),
+          child: const Icon(Icons.lock_rounded, color: C.gold, size: 24)),
+        const SizedBox(height: 12),
+        Text(widget.title, style: GoogleFonts.playfairDisplay(color: C.text, fontSize: 18, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text(widget.subtitle, style: GoogleFonts.dmSans(color: C.muted, fontSize: 12)),
+        const SizedBox(height: 28),
+        // 4 circles
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          transform: _shake ? (Matrix4.translationValues(8, 0, 0)) : Matrix4.identity(),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(4, (i) {
+            final filled = i < _pin.length;
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 10),
+              width: 16, height: 16,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: filled ? C.gold : Colors.transparent,
+                border: Border.all(color: filled ? C.gold : C.muted, width: 2),
+              ),
+            );
+          })),
+        ),
+        const SizedBox(height: 32),
+        // Number pad
+        ...[
+          ['1','2','3'],
+          ['4','5','6'],
+          ['7','8','9'],
+          ['','0','⌫'],
+        ].map((row) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: row.map((k) {
+            if (k.isEmpty) return const SizedBox(width: 80, height: 56);
+            return GestureDetector(
+              onTap: () => k == '⌫' ? _onDelete() : _onKey(k),
+              child: Container(
+                width: 80, height: 56, margin: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  color: k == '⌫' ? Colors.transparent : C.navyL,
+                  borderRadius: BorderRadius.circular(14),
+                  border: k == '⌫' ? null : Border.all(color: C.gold.withOpacity(0.1)),
+                ),
+                child: Center(child: k == '⌫'
+                  ? Icon(Icons.backspace_outlined, color: C.muted, size: 20)
+                  : Text(k, style: GoogleFonts.dmSans(color: C.text, fontSize: 22, fontWeight: FontWeight.w600))),
+              ),
+            );
+          }).toList()),
+        )),
+        const SizedBox(height: 8),
+        if (widget.onCancel != null)
+          TextButton(onPressed: widget.onCancel,
+            child: Text('Annuler / Cancel', style: GoogleFonts.dmSans(color: C.muted, fontSize: 13))),
+        const SizedBox(height: 8),
+      ]),
+    );
+  }
+}
+
+// Show PIN bottom sheet and return entered PIN or null if cancelled
+Future<String?> showPinSheet(BuildContext context, {
+  required String title, required String subtitle}) async {
+  String? result;
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => _PinPad(
+      title: title, subtitle: subtitle,
+      onCompleted: (pin) { result = pin; Navigator.pop(ctx); },
+      onCancel: () => Navigator.pop(ctx),
+    ),
+  );
+  return result;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PIN SETUP PAGE
+// ══════════════════════════════════════════════════════════════════════════════
+class PinSetupPage extends StatefulWidget {
+  final String lang;
+  final VoidCallback onDone;
+  const PinSetupPage({super.key, required this.lang, required this.onDone});
+  @override State<PinSetupPage> createState() => _PinSetupState();
+}
+
+class _PinSetupState extends State<PinSetupPage> {
+  String _step = 'create'; // 'create' | 'confirm'
+  String _firstPin = '';
+  String _error = '';
+  bool get _isAr => widget.lang == 'ar';
+  String get _lang => widget.lang;
+  String _t(String ar, String fr, String en) =>
+      _lang == 'ar' ? ar : _lang == 'fr' ? fr : en;
+
+  void _onPinCreated(String pin) {
+    setState(() { _firstPin = pin; _step = 'confirm'; _error = ''; });
+  }
+
+  Future<void> _onPinConfirmed(String pin) async {
+    if (pin != _firstPin) {
+      setState(() { _error = _t('الرقمان غير متطابقان، حاول مجدداً','Les codes ne correspondent pas, réessayez','PINs do not match, try again'); _step = 'create'; _firstPin = ''; });
+      return;
+    }
+    final result = await apiService.setPin(pin);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      widget.onDone();
+    } else {
+      setState(() { _error = result['error']?.toString() ?? 'Error'; _step = 'create'; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: C.navy,
+    body: AppBg(child: SafeArea(child: Center(child: SingleChildScrollView(
+      padding: const EdgeInsets.all(32),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Container(width: 72, height: 72,
+          decoration: BoxDecoration(gradient: const LinearGradient(colors: [C.gold, C.goldL]),
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [BoxShadow(color: C.gold.withOpacity(0.45), blurRadius: 24, offset: const Offset(0,8))]),
+          child: const Icon(Icons.lock_rounded, color: C.navy, size: 32)),
+        const SizedBox(height: 20),
+        Text(_t('إعداد الرقم السري','Configurer votre code PIN','Set up your PIN'),
+          style: GoogleFonts.playfairDisplay(color: C.gold, fontSize: 24, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        Text(_t('سيُستخدم هذا الرقم لتأكيد كل عملية مالية',
+          'Ce code sera utilisé pour confirmer chaque opération',
+          'This PIN will be used to confirm every financial operation'),
+          style: GoogleFonts.dmSans(color: C.muted, fontSize: 13), textAlign: TextAlign.center),
+        if (_error.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Container(padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: C.error.withOpacity(0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: C.error.withOpacity(0.3))),
+            child: Text(_error, style: GoogleFonts.dmSans(color: C.error, fontSize: 12), textAlign: TextAlign.center)),
+        ],
+        const SizedBox(height: 32),
+        _PinPad(
+          title: _step == 'create'
+            ? _t('أدخل رقمك السري','Entrez votre code PIN','Enter your PIN')
+            : _t('أكّد رقمك السري','Confirmez votre code PIN','Confirm your PIN'),
+          subtitle: _step == 'create'
+            ? _t('اختر 4 أرقام','Choisissez 4 chiffres','Choose 4 digits')
+            : _t('أعد إدخال نفس الرقم','Entrez le même code','Re-enter the same PIN'),
+          onCompleted: _step == 'create' ? _onPinCreated : _onPinConfirmed,
+        ),
+      ]),
+    )))),
+  );
+}
+
 class _DialogField extends StatelessWidget {
   final TextEditingController ctrl;
   final String label;
@@ -1111,8 +1377,14 @@ class _RegisterState extends State<RegisterPage> {
 // ══════════════════════════════════════════════════════════════════════════════
 // CHAT PAGE
 // ══════════════════════════════════════════════════════════════════════════════
-class _Msg { final String text, lang; final bool isUser; final DateTime time;
-  _Msg({required this.text, required this.isUser, required this.time, this.lang = 'ar'}); }
+// source: 'user' | 'faq' | 'gemini' | 'action' | 'action_guide' | 'fallback'
+class _Msg {
+  final String text, lang, source;
+  final bool isUser;
+  final DateTime time;
+  _Msg({required this.text, required this.isUser, required this.time,
+        this.lang = 'ar', this.source = 'faq'});
+}
 
 class ChatPage extends StatefulWidget {
   final String lang; final void Function(String) onLangChange;
@@ -1131,25 +1403,37 @@ class _ChatState extends State<ChatPage> {
 
   // اقتراحات سريعة مخصصة
   final _sugs = {
-    'ar': ['💰 ما هو رصيدي؟', '📱 كيف أشحن هاتفي؟', '💸 كيف أحول الأموال؟', '🔄 ما هي خدمة جيمتل؟', '🧾 كيف أدفع الفواتير؟', '💵 كيف أسحب النقود؟', '🏪 كيف أدفع عند التاجر؟', '🔑 نسيت رقمي السري'],
-    'en': ['💰 Check my balance', '📱 Phone recharge', '💸 Transfer money', '🔄 GIMTEL service', '🧾 Pay bills', '💵 Cash withdrawal', '🏪 Merchant payment (B-Pay)', '🔑 Forgot my PIN'],
-    'fr': ['💰 Mon solde', '📱 Recharger téléphone', '💸 Transférer de l\'argent', '🔄 Service GIMTEL', '🧾 Payer des factures', '💵 Retirer de l\'argent', '🏪 Paiement marchand (B-Pay)', '🔑 Code PIN oublié'],
+    'ar': [
+      '💰 رصيد', '💸 حول 500 إلى ahmed', '📱 شحن 22334455 100',
+      '🧾 دفع فاتورة كهرباء 500', '💵 سحب 1000',
+      '❓ كيف أحول الأموال؟', '❓ كيف أدفع الفواتير؟', '🔑 نسيت رقمي السري',
+    ],
+    'en': [
+      '💰 balance', '💸 transfer 500 to ahmed', '📱 topup 22334455 100',
+      '🧾 pay bill electricity 500', '💵 withdraw 1000',
+      '❓ how to transfer?', '❓ how to pay bills?', '🔑 forgot my PIN',
+    ],
+    'fr': [
+      '💰 solde', '💸 virer 500 à ahmed', '📱 recharge 22334455 100',
+      '🧾 payer facture électricité 500', '💵 retrait 1000',
+      '❓ comment virer?', '❓ comment payer les factures?', '🔑 code PIN oublié',
+    ],
   };
   void _send(String text) async {
     if (text.trim().isEmpty) return;
     _ctrl.clear();
 
-    final result = FAQ.resolve(text);
+    final detectedLang = FAQ.detectLang(text);
     setState(() {
-      _msgs.add(_Msg(text: text, isUser: true, time: DateTime.now(), lang: result['lang']!));
+      _msgs.add(_Msg(text: text, isUser: true, time: DateTime.now(), lang: detectedLang, source: 'user'));
       _typing = true;
     });
     _scrollDown();
 
-    String answer = result['answer']!;
-    String lang = result['lang']!;
+    String answer = '';
+    String lang = detectedLang;
+    String source = 'faq';
 
-    // Ask the backend so actions and Gemini fallback run server-side.
     final apiResult = await apiService.sendMessage(text, sessionId: _sessionId);
     if (apiResult != null) {
       if (apiResult['error'] != null) {
@@ -1157,6 +1441,7 @@ class _ChatState extends State<ChatPage> {
         answer = statusCode == null
             ? apiResult['error'].toString()
             : 'Chat backend error ($statusCode): ${apiResult['error']}';
+        source = 'fallback';
       } else {
         _sessionId = apiResult['session_id']?.toString();
         final botMessage = apiResult['bot_message'];
@@ -1164,17 +1449,25 @@ class _ChatState extends State<ChatPage> {
           answer = botMessage['content'].toString();
         }
         lang = apiResult['lang']?.toString() ?? lang;
+        source = apiResult['source']?.toString() ?? 'faq';
       }
     } else {
-      answer = 'Chat backend is unavailable. Check that Django is running and the API URL is correct.';
+      answer = 'Chat backend is unavailable.';
+      source = 'fallback';
+    }
+
+    if (answer.isEmpty) {
+      final localResult = FAQ.resolve(text);
+      answer = localResult['answer']!;
+      source = 'faq';
     }
 
     if (!mounted) return;
     setState(() {
       _typing = false;
-      _msgs.add(_Msg(text: answer, isUser: false, time: DateTime.now(), lang: lang));
+      _msgs.add(_Msg(text: answer, isUser: false, time: DateTime.now(), lang: lang, source: source));
     });
-     _scrollDown();
+    _scrollDown();
   }
   // void _send(String text) async {
   //   if (text.trim().isEmpty) return;
@@ -1273,6 +1566,313 @@ class _ChatState extends State<ChatPage> {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// WALLET PAGE
+// ══════════════════════════════════════════════════════════════════════════════
+class WalletPage extends StatefulWidget {
+  final String lang; final VoidCallback onLogout;
+  const WalletPage({super.key, required this.lang, required this.onLogout});
+  @override State<WalletPage> createState() => _WalletState();
+}
+
+class _WalletState extends State<WalletPage> {
+  Map<String, dynamic>? _wallet;
+  List<dynamic> _txns = [];
+  bool _loading = true;
+  bool get _isAr => widget.lang == 'ar';
+  String get _lang => widget.lang;
+
+  @override void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final w = await apiService.getWalletBalance();
+    final t = await apiService.getTransactions();
+    if (!mounted) return;
+    setState(() { _wallet = w; _txns = t; _loading = false; });
+  }
+
+  String _t(String ar, String fr, String en) =>
+      _lang == 'ar' ? ar : _lang == 'fr' ? fr : en;
+
+  String _txType(String type) {
+    const m = {
+      'transfer': {'ar':'تحويل','fr':'Virement','en':'Transfer'},
+      'phone_topup': {'ar':'شحن هاتف','fr':'Recharge','en':'Top-up'},
+      'bill_payment': {'ar':'دفع فاتورة','fr':'Facture','en':'Bill'},
+      'withdrawal': {'ar':'سحب','fr':'Retrait','en':'Withdrawal'},
+      'gimtel': {'ar':'جيمتل','fr':'GIMTEL','en':'GIMTEL'},
+      'purchase': {'ar':'شراء','fr':'Achat','en':'Purchase'},
+      'deposit': {'ar':'إيداع','fr':'Dépôt','en':'Deposit'},
+    };
+    return m[type]?[_lang] ?? type;
+  }
+
+  Color _txColor(Map tx) {
+    final myUsername = _wallet?['username'] ?? '';
+    return tx['sender_name'] == myUsername ? C.error : Colors.green.shade400;
+  }
+
+  String _txSign(Map tx) {
+    final myUsername = _wallet?['username'] ?? '';
+    return tx['sender_name'] == myUsername ? '- ' : '+ ';
+  }
+
+  void _showAction(String type) {
+    final amtCtrl = TextEditingController();
+    final toCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+    final refCtrl = TextEditingController();
+    String? err; bool loading = false;
+
+    final titles = {
+      'transfer': _t('تحويل الأموال','Virement','Transfer Money'),
+      'topup': _t('شحن الهاتف','Recharge Téléphone','Phone Top-up'),
+      'bill': _t('دفع الفاتورة','Payer une Facture','Pay Bill'),
+    };
+
+    showDialog(context: context, barrierDismissible: !loading, builder: (ctx) =>
+      StatefulBuilder(builder: (ctx, setS) => Directionality(
+        textDirection: _isAr ? TextDirection.rtl : TextDirection.ltr,
+        child: AlertDialog(
+          backgroundColor: C.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(titles[type]!, style: GoogleFonts.dmSans(color: C.gold, fontWeight: FontWeight.w700, fontSize: 16)),
+          content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (type == 'transfer') ...[
+              _DialogField(ctrl: toCtrl, label: _t('اسم المستخدم المستلم','Destinataire','Recipient Username')),
+              const SizedBox(height: 10),
+            ],
+            if (type == 'topup') ...[
+              _DialogField(ctrl: phoneCtrl, label: _t('رقم الهاتف','Numéro de téléphone','Phone Number'), keyboardType: TextInputType.phone),
+              const SizedBox(height: 10),
+            ],
+            if (type == 'bill') ...[
+              _DialogField(ctrl: refCtrl, label: _t('معرّف المؤسسة','Identifiant','Reference / ID')),
+              const SizedBox(height: 10),
+            ],
+            _DialogField(ctrl: amtCtrl, label: _t('المبلغ (MRU)','Montant (MRU)','Amount (MRU)'), keyboardType: TextInputType.number),
+            if (err != null) ...[
+              const SizedBox(height: 10),
+              Text(err!, style: GoogleFonts.dmSans(color: C.error, fontSize: 12)),
+            ],
+          ])),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx),
+              child: Text(_t('إلغاء','Annuler','Cancel'), style: GoogleFonts.dmSans(color: C.muted))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: C.gold, foregroundColor: C.navy,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+              onPressed: loading ? null : () async {
+                final amt = double.tryParse(amtCtrl.text.trim());
+                if (amt == null || amt <= 0) {
+                  setS(() => err = _t('أدخل مبلغاً صحيحاً','Montant invalide','Enter a valid amount'));
+                  return;
+                }
+                if (type == 'transfer' && toCtrl.text.trim().isEmpty) {
+                  setS(() => err = _t('أدخل اسم المستخدم','Entrez le destinataire','Enter recipient username'));
+                  return;
+                }
+                if (type == 'topup' && phoneCtrl.text.trim().isEmpty) {
+                  setS(() => err = _t('أدخل رقم الهاتف','Entrez le numéro','Enter phone number'));
+                  return;
+                }
+                // Ask for PIN before confirming
+                final pin = await showPinSheet(ctx,
+                  title: _t('أدخل رقمك السري', 'Entrez votre code PIN', 'Enter your PIN'),
+                  subtitle: _t('للتأكيد على العملية', 'Pour confirmer l\'opération', 'To confirm the operation'));
+                if (pin == null) return; // user cancelled
+                setS(() { loading = true; err = null; });
+                Map<String, dynamic>? result;
+                if (type == 'transfer') {
+                  result = await apiService.transfer(toCtrl.text.trim(), amt, pin: pin);
+                } else if (type == 'topup') {
+                  result = await apiService.topup(phoneCtrl.text.trim(), amt, pin: pin);
+                } else {
+                  result = await apiService.payBill(refCtrl.text.trim().isEmpty ? 'general' : refCtrl.text.trim(), amt, reference: refCtrl.text.trim(), pin: pin);
+                }
+                if (!ctx.mounted) return;
+                if (result?['success'] == true) {
+                  Navigator.pop(ctx);
+                  _load();
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(_t('✅ تمت العملية بنجاح','✅ Opération réussie','✅ Operation successful'),
+                      style: GoogleFonts.dmSans(color: Colors.white)),
+                    backgroundColor: Colors.green.shade700, duration: const Duration(seconds: 3)));
+                } else {
+                  setS(() { loading = false; err = result?['error']?.toString() ?? _t('حدث خطأ','Erreur','Error occurred'); });
+                }
+              },
+              child: loading
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: C.navy))
+                : Text(_t('تأكيد','Confirmer','Confirm'), style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      )),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final balance = _wallet?['balance'] ?? '0.00';
+    final currency = _wallet?['currency'] ?? 'MRU';
+
+    return Scaffold(
+      backgroundColor: C.navy,
+      body: SafeArea(child: RefreshIndicator(
+        onRefresh: _load,
+        color: C.gold,
+        backgroundColor: C.surface,
+        child: CustomScrollView(slivers: [
+          // ── Header ──────────────────────────────────────────────────────────
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Row(children: [
+              Text('FinAssist', style: GoogleFonts.playfairDisplay(color: C.gold, fontSize: 22, fontWeight: FontWeight.w800)),
+              const Spacer(),
+              GestureDetector(onTap: widget.onLogout,
+                child: Icon(Icons.logout_rounded, color: C.muted, size: 22)),
+            ]),
+          )),
+
+          // ── Balance card ─────────────────────────────────────────────────────
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF1A2050), Color(0xFF0A0E27)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: C.gold.withOpacity(0.3), width: 1.5),
+                boxShadow: [BoxShadow(color: C.gold.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 8))],
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Container(padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: C.gold.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.account_balance_wallet, color: C.gold, size: 20)),
+                  const SizedBox(width: 10),
+                  Text(_t('المحفظة الرقمية', 'Portefeuille', 'Digital Wallet'),
+                    style: GoogleFonts.dmSans(color: C.muted, fontSize: 13)),
+                ]),
+                const SizedBox(height: 16),
+                if (_loading)
+                  const CircularProgressIndicator(color: C.gold, strokeWidth: 2)
+                else ...[
+                  Text('$balance $currency',
+                    style: GoogleFonts.playfairDisplay(color: C.text, fontSize: 32, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text(_t('الرصيد المتاح', 'Solde disponible', 'Available Balance'),
+                    style: GoogleFonts.dmSans(color: C.muted, fontSize: 12)),
+                ],
+              ]),
+            ),
+          )),
+
+          // ── Quick actions ─────────────────────────────────────────────────────
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_t('الخدمات', 'Services', 'Services'),
+                style: GoogleFonts.dmSans(color: C.muted, fontSize: 12, letterSpacing: 1)),
+              const SizedBox(height: 12),
+              GridView.count(
+                shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 3, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.1,
+                children: [
+                  _ActionBtn(icon: Icons.send_rounded, label: _t('تحويل','Virement','Transfer'), color: const Color(0xFF4CAF50), onTap: () => _showAction('transfer')),
+                  _ActionBtn(icon: Icons.phone_android_rounded, label: _t('شحن','Recharge','Top-up'), color: const Color(0xFF2196F3), onTap: () => _showAction('topup')),
+                  _ActionBtn(icon: Icons.receipt_long_rounded, label: _t('فاتورة','Facture','Bill'), color: const Color(0xFFFF9800), onTap: () => _showAction('bill')),
+                  _ActionBtn(icon: Icons.store_rounded, label: 'B-Pay', color: const Color(0xFF9C27B0), onTap: () => _showAction('bill')),
+                  _ActionBtn(icon: Icons.g_mobiledata_rounded, label: 'GIMTEL', color: const Color(0xFF009688), onTap: () => _showAction('transfer')),
+                  _ActionBtn(icon: Icons.refresh_rounded, label: _t('تحديث','Actualiser','Refresh'), color: C.muted, onTap: _load),
+                ],
+              ),
+            ]),
+          )),
+
+          // ── Transactions ─────────────────────────────────────────────────────
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+            child: Text(_t('آخر المعاملات', 'Dernières transactions', 'Recent Transactions'),
+              style: GoogleFonts.dmSans(color: C.muted, fontSize: 12, letterSpacing: 1)),
+          )),
+
+          if (_loading)
+            const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(40),
+              child: Center(child: CircularProgressIndicator(color: C.gold, strokeWidth: 2))))
+          else if (_txns.isEmpty)
+            SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.all(40),
+              child: Center(child: Text(_t('لا توجد معاملات بعد', 'Aucune transaction', 'No transactions yet'),
+                style: GoogleFonts.dmSans(color: C.muted, fontSize: 14)))))
+          else
+            SliverList(delegate: SliverChildBuilderDelegate((ctx, i) {
+              final tx = _txns[i] as Map;
+              final isOut = _txSign(tx) == '- ';
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: C.surface, borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: C.gold.withOpacity(0.06)),
+                  ),
+                  child: Row(children: [
+                    Container(width: 40, height: 40,
+                      decoration: BoxDecoration(
+                        color: (isOut ? C.error : Colors.green.shade400).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10)),
+                      child: Icon(isOut ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                        color: isOut ? C.error : Colors.green.shade400, size: 18)),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(_txType(tx['transaction_type'] ?? ''),
+                        style: GoogleFonts.dmSans(color: C.text, fontSize: 13, fontWeight: FontWeight.w600)),
+                      Text(isOut
+                        ? _t('إلى: ${tx['receiver_name'] ?? ''}', 'À: ${tx['receiver_name'] ?? ''}', 'To: ${tx['receiver_name'] ?? ''}')
+                        : _t('من: ${tx['sender_name'] ?? ''}', 'De: ${tx['sender_name'] ?? ''}', 'From: ${tx['sender_name'] ?? ''}'),
+                        style: GoogleFonts.dmSans(color: C.muted, fontSize: 11)),
+                    ])),
+                    Text('${_txSign(tx)}${tx['amount']} ${tx['currency'] ?? 'MRU'}',
+                      style: GoogleFonts.dmSans(
+                        color: isOut ? C.error : Colors.green.shade400,
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+                  ]),
+                ),
+              );
+            }, childCount: _txns.length)),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 20)),
+        ]),
+      )),
+    );
+  }
+}
+
+class _ActionBtn extends StatelessWidget {
+  final IconData icon; final String label; final Color color; final VoidCallback onTap;
+  const _ActionBtn({required this.icon, required this.label, required this.color, required this.onTap});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      decoration: BoxDecoration(
+        color: C.surface, borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Container(width: 38, height: 38,
+          decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+          child: Icon(icon, color: color, size: 20)),
+        const SizedBox(height: 6),
+        Text(label, style: GoogleFonts.dmSans(color: C.text, fontSize: 11, fontWeight: FontWeight.w600),
+          textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ]),
+    ),
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // HISTORY PAGE
 // ══════════════════════════════════════════════════════════════════════════════
 class HistoryPage extends StatefulWidget {
@@ -1346,7 +1946,81 @@ class _BubbleState extends State<_BubbleW> with SingleTickerProviderStateMixin {
   @override void dispose() { _c.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) {
-    final u = widget.msg.isUser; final ar = widget.msg.lang == 'ar';
+    final u = widget.msg.isUser;
+    final ar = widget.msg.lang == 'ar';
+    final src = widget.msg.source;
+    final isAction = src == 'action';
+    final isActionGuide = src == 'action_guide';
+    final isGemini = src == 'gemini';
+    final isError = widget.msg.text.startsWith('❌');
+    final isSuccess = widget.msg.text.startsWith('✅');
+
+    // ── Action card (success/error) ─────────────────────────────────────
+    if (!u && (isAction || isActionGuide)) {
+      Color borderColor = isError ? C.error : isSuccess ? Colors.green.shade400 : C.gold;
+      Color bgColor = isError ? C.error.withOpacity(0.08) : isSuccess ? Colors.green.withOpacity(0.08) : C.gold.withOpacity(0.06);
+      IconData icon = isError ? Icons.error_outline : isSuccess ? Icons.check_circle_outline : Icons.info_outline;
+      Color iconColor = isError ? C.error : isSuccess ? Colors.green.shade400 : C.gold;
+      String label = ar ? (isAction ? '⚡ عملية' : '💡 إرشاد') : ar ? '' : isAction ? '⚡ Action' : '💡 Guide';
+
+      return FadeTransition(opacity: _fa, child: ScaleTransition(scale: _sc,
+        alignment: Alignment.centerLeft,
+        child: Padding(padding: const EdgeInsets.only(bottom: 14),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _Av(), const SizedBox(width: 8),
+            Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: borderColor.withOpacity(0.4), width: 1.5),
+                  boxShadow: [BoxShadow(color: borderColor.withOpacity(0.1), blurRadius: 12, offset: const Offset(0, 4))],
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // Label bar
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: borderColor.withOpacity(0.12),
+                      borderRadius: const BorderRadius.only(topLeft: Radius.circular(14), topRight: Radius.circular(14)),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(icon, color: iconColor, size: 14),
+                      const SizedBox(width: 5),
+                      Text(label, style: GoogleFonts.dmSans(color: iconColor, fontSize: 11, fontWeight: FontWeight.w700)),
+                    ]),
+                  ),
+                  // Content
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                    child: Directionality(textDirection: ar ? TextDirection.rtl : TextDirection.ltr,
+                      child: Text(widget.msg.text,
+                        style: GoogleFonts.dmSans(color: C.text, fontSize: 13, height: 1.7))),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 3),
+              Text('${widget.msg.time.hour.toString().padLeft(2,"0")}:${widget.msg.time.minute.toString().padLeft(2,"0")}',
+                style: GoogleFonts.dmSans(color: C.muted, fontSize: 9)),
+            ])),
+          ]))));
+    }
+
+    // ── Gemini badge ────────────────────────────────────────────────────
+    Widget? sourceBadge;
+    if (!u && isGemini) {
+      sourceBadge = Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 6, height: 6, decoration: const BoxDecoration(color: Colors.purple, shape: BoxShape.circle)),
+          const SizedBox(width: 4),
+          Text('AI', style: GoogleFonts.dmSans(color: Colors.purple.shade300, fontSize: 9, fontWeight: FontWeight.w600)),
+        ]),
+      );
+    }
+
+    // ── Standard bubble (user / faq / gemini) ───────────────────────────
     return FadeTransition(opacity: _fa, child: ScaleTransition(scale: _sc,
       alignment: u ? Alignment.centerRight : Alignment.centerLeft,
       child: Padding(padding: const EdgeInsets.only(bottom: 14),
@@ -1367,8 +2041,11 @@ class _BubbleState extends State<_BubbleW> with SingleTickerProviderStateMixin {
               child: Directionality(textDirection: ar ? TextDirection.rtl : TextDirection.ltr,
                 child: Text(widget.msg.text, style: GoogleFonts.dmSans(color: C.text, fontSize: 13, height: 1.65)))),
             const SizedBox(height: 3),
-            Text('${widget.msg.time.hour.toString().padLeft(2,"0")}:${widget.msg.time.minute.toString().padLeft(2,"0")}',
-              style: GoogleFonts.dmSans(color: C.muted, fontSize: 9)),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              if (sourceBadge != null) ...[sourceBadge, const SizedBox(width: 6)],
+              Text('${widget.msg.time.hour.toString().padLeft(2,"0")}:${widget.msg.time.minute.toString().padLeft(2,"0")}',
+                style: GoogleFonts.dmSans(color: C.muted, fontSize: 9)),
+            ]),
           ])),
           if (u) const SizedBox(width: 8),
         ]))));

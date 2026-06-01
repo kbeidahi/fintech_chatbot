@@ -121,6 +121,33 @@ class ApiService {
     return token != null;
   }
 
+  // ── PIN ──────────────────────────────────────────────────────────────────
+
+  Future<bool> hasPinSet() async {
+    try {
+      final res = await _dio.get('/auth/pin/status/');
+      return res.data['has_pin'] == true;
+    } catch (_) { return false; }
+  }
+
+  Future<Map<String, dynamic>> setPin(String pin) async {
+    try {
+      final res = await _dio.post('/auth/pin/set/', data: {'pin': pin});
+      return {'success': true, 'message': res.data['message']};
+    } on DioException catch (e) {
+      return {'success': false, 'error': e.response?.data?['error'] ?? 'Failed to set PIN'};
+    } catch (_) {
+      return {'success': false, 'error': 'Failed to set PIN'};
+    }
+  }
+
+  Future<bool> verifyPin(String pin) async {
+    try {
+      await _dio.post('/auth/pin/verify/', data: {'pin': pin});
+      return true;
+    } catch (_) { return false; }
+  }
+
   Future<Map<String, dynamic>> findAccountByEmail(String email) async {
     try {
       final res = await _dio.post('/auth/find-account/', data: {'email': email.trim()});
@@ -228,15 +255,66 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>?> transfer(
-      String username, double amount) async {
+      String username, double amount, {required String pin}) async {
     try {
       final res = await _dio.post('/wallet/transfer/', data: {
-        'username': username,
-        'amount': amount,
+        'username': username, 'amount': amount, 'pin': pin,
       });
       return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return {'success': false, 'error': e.response?.data?['error'] ?? 'Transfer failed'};
     } catch (_) {
-      return null;
+      return {'success': false, 'error': 'Transfer failed'};
+    }
+  }
+
+  Future<Map<String, dynamic>?> topup(String phone, double amount, {required String pin}) async {
+    try {
+      final res = await _dio.post('/wallet/topup/', data: {
+        'phone': phone, 'amount': amount, 'pin': pin,
+      });
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return {'success': false, 'error': e.response?.data?['error'] ?? 'Top-up failed'};
+    } catch (_) {
+      return {'success': false, 'error': 'Top-up failed'};
+    }
+  }
+
+  Future<Map<String, dynamic>?> payBill(String billType, double amount,
+      {String reference = '', required String pin}) async {
+    try {
+      final res = await _dio.post('/wallet/pay-bill/', data: {
+        'bill_type': billType, 'amount': amount, 'reference': reference, 'pin': pin,
+      });
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      return {'success': false, 'error': e.response?.data?['error'] ?? 'Payment failed'};
+    } catch (_) {
+      return {'success': false, 'error': 'Payment failed'};
+    }
+  }
+
+  Future<Map<String, dynamic>?> sendMessageWithPin(String message,
+      {String? sessionId, String pin = ''}) async {
+    try {
+      final res = await _dio.post('/chat/message/', data: {
+        'message': message,
+        if (sessionId != null) 'session_id': sessionId,
+        if (pin.isNotEmpty) 'pin': pin,
+      });
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (error) {
+      final statusCode = error.response?.statusCode;
+      final responseData = error.response?.data;
+      return {
+        'error': responseData is Map && responseData['error'] != null
+            ? responseData['error'].toString()
+            : 'Chat backend is unavailable.',
+        if (statusCode != null) 'status_code': statusCode,
+      };
+    } catch (_) {
+      return {'error': 'Chat backend is unavailable.'};
     }
   }
 }

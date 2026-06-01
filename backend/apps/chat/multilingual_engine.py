@@ -355,7 +355,37 @@ def detect_action(norm: str, lang: str) -> Optional[str]:
 
 class MultilingualIntentEngine:
 
-    def resolve(self, message: str, user=None) -> dict:
+    # PIN error responses
+    _PIN_REQUIRED = {
+        'ar': '🔐 يرجى إدخال رقمك السري (4 أرقام) لتأكيد هذه العملية.',
+        'fr': '🔐 Veuillez saisir votre code PIN (4 chiffres) pour confirmer cette opération.',
+        'en': '🔐 Please enter your 4-digit PIN to confirm this operation.',
+    }
+    _PIN_NOT_SET = {
+        'ar': '⚠️ لم تقم بتعيين رقم سري بعد. يرجى إعداد الرقم السري من إعدادات الحساب أولاً.',
+        'fr': '⚠️ Vous n\'avez pas encore défini de code PIN. Veuillez le configurer dans les paramètres du compte.',
+        'en': '⚠️ You have not set a PIN yet. Please set up your PIN in account settings first.',
+    }
+    _PIN_WRONG = {
+        'ar': '❌ رقم سري غير صحيح. يرجى المحاولة مرة أخرى.',
+        'fr': '❌ Code PIN incorrect. Veuillez réessayer.',
+        'en': '❌ Incorrect PIN. Please try again.',
+    }
+
+    def _check_pin(self, user, pin: str, lang: str) -> dict | None:
+        """Returns an error dict if PIN check fails, else None (meaning OK)."""
+        if not user.has_pin:
+            return {'answer': self._PIN_NOT_SET.get(lang, self._PIN_NOT_SET['en']),
+                    'intent': 'pin_not_set', 'lang': lang, 'source': 'pin_error'}
+        if not pin:
+            return {'answer': self._PIN_REQUIRED.get(lang, self._PIN_REQUIRED['en']),
+                    'intent': 'pin_required', 'lang': lang, 'source': 'pin_required'}
+        if not user.check_pin(pin):
+            return {'answer': self._PIN_WRONG.get(lang, self._PIN_WRONG['en']),
+                    'intent': 'pin_wrong', 'lang': lang, 'source': 'pin_error'}
+        return None
+
+    def resolve(self, message: str, user=None, pin: str = '') -> dict:
         lang = detect_language(message)
         norm = normalize(message)
 
@@ -375,6 +405,8 @@ class MultilingualIntentEngine:
                 }
 
             elif action == 'transfer':
+                err = self._check_pin(user, pin, lang)
+                if err: return err
                 amount = extract_amount(message)
                 username = extract_username(message)
                 if amount and username:
@@ -408,6 +440,8 @@ class MultilingualIntentEngine:
                     }
 
             elif action == 'topup':
+                err = self._check_pin(user, pin, lang)
+                if err: return err
                 amount = extract_amount(message)
                 phone = extract_phone(message)
                 if amount and phone:
@@ -436,6 +470,8 @@ class MultilingualIntentEngine:
                     }
 
             elif action == 'bill':
+                err = self._check_pin(user, pin, lang)
+                if err: return err
                 amount = extract_amount(message)
                 bill_type = extract_bill_type(message)
                 if amount:
@@ -464,6 +500,8 @@ class MultilingualIntentEngine:
                     }
 
             elif action == 'withdrawal':
+                err = self._check_pin(user, pin, lang)
+                if err: return err
                 amount = extract_amount(message)
                 if amount:
                     success, msg, txn = process_payment(
@@ -485,6 +523,8 @@ class MultilingualIntentEngine:
                         }
 
             elif action == 'gimtel':
+                err = self._check_pin(user, pin, lang)
+                if err: return err
                 amount = extract_amount(message)
                 app = extract_gimtel_app(message)
                 if amount and app:
