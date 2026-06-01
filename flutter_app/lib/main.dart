@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
+import 'services/api_service.dart';
 void main() => runApp(const FinAssistApp());
 
 // ── Colors ────────────────────────────────────────────────────────────────────
@@ -432,6 +432,13 @@ class FAQ {
     final lang = detectLang(msg);
     final lower = msg.toLowerCase();
 
+    if (lower.contains('how are you') ||
+        lower.contains('how are u') ||
+        lower.contains('how r u') ||
+        lower.contains('how is it going')) {
+      return {'lang': lang, 'answer': _greeting(lang)};
+    }
+
     // Greetings
     final greet = ['hi','hello','hey','مرحبا','السلام','هلا','أهلا','bonjour','salut','bonsoir','صباح','مساء'];
     if (greet.any((g) => lower.contains(g))) {
@@ -530,7 +537,10 @@ class _FinAssistAppState extends State<FinAssistApp> {
   void _setLang(String l) => setState(() => _lang = l);
   void _nav(String s) => setState(() => _screen = s);
   void _login() => _nav('chat');
-  void _logout() => _nav('login');
+  void _logout() {
+    apiService.logout();
+    _nav('login');
+  }
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -606,6 +616,36 @@ class GoldBtn extends StatelessWidget {
       child: Center(child: loading
         ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: C.navy, strokeWidth: 2.5))
         : Text(label, style: GoogleFonts.dmSans(color: C.navy, fontSize: 15, fontWeight: FontWeight.w700)))));
+}
+
+// Simple text field used inside the forgot-password dialog
+class _DialogField extends StatelessWidget {
+  final TextEditingController ctrl;
+  final String label;
+  final bool obscure;
+  final TextInputType keyboardType;
+  const _DialogField({required this.ctrl, required this.label,
+    this.obscure = false, this.keyboardType = TextInputType.text});
+  @override
+  Widget build(BuildContext context) => TextField(
+    controller: ctrl,
+    obscureText: obscure,
+    keyboardType: keyboardType,
+    style: GoogleFonts.dmSans(color: C.text, fontSize: 13),
+    decoration: InputDecoration(
+      labelText: label,
+      labelStyle: GoogleFonts.dmSans(color: C.muted, fontSize: 12),
+      filled: true,
+      fillColor: C.navyL,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: C.gold.withOpacity(0.2))),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: C.gold.withOpacity(0.2))),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: C.gold)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    ),
+  );
 }
 
 class GoldField extends StatelessWidget {
@@ -714,9 +754,194 @@ class _LoginState extends State<LoginPage> {
   void _submit() async {
     if (_u.text.isEmpty || _p.text.isEmpty) return;
     setState(() { _loading = true; _error = null; });
-    await Future.delayed(const Duration(milliseconds: 1200));
-    if (_u.text.isNotEmpty && _p.text.length >= 4) { widget.onSuccess(); }
-    else { setState(() { _loading = false; _error = _isAr ? 'اسم المستخدم أو كلمة المرور غير صحيحة' : widget.lang == 'fr' ? 'Identifiants incorrects' : 'Invalid credentials'; }); }
+    final ok = await apiService.login(_u.text.trim(), _p.text);
+    if (!mounted) return;
+    if (ok) {
+      widget.onSuccess();
+    } else {
+      setState(() {
+        _loading = false;
+        _error = _isAr ? 'اسم المستخدم أو كلمة المرور غير صحيحة' : widget.lang == 'fr' ? 'Identifiants incorrects' : 'Invalid credentials';
+      });
+    }
+  }
+
+  void _showForgotPassword(BuildContext context) {
+    final lang = widget.lang;
+    final isAr = lang == 'ar';
+    final eCtrl = TextEditingController();
+    final p1Ctrl = TextEditingController();
+    final p2Ctrl = TextEditingController();
+    String? dialogError;
+    bool loading = false;
+    // Step 1 = enter email to find account, Step 2 = set new password
+    int step = 1;
+    String foundUsername = '';
+
+    showDialog(
+      context: context,
+      barrierDismissible: !loading,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+
+          // ── Step 1: verify account by email ───────────────────────────────
+          final step1Content = Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(
+              isAr ? 'أدخل بريدك الإلكتروني المرتبط بحسابك وسنتحقق من وجوده.'
+                  : lang == 'fr' ? 'Entrez l\'adresse e-mail liée à votre compte.'
+                  : 'Enter the email address linked to your account.',
+              style: GoogleFonts.dmSans(color: C.muted, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            _DialogField(
+              ctrl: eCtrl,
+              label: isAr ? 'البريد الإلكتروني' : lang == 'fr' ? 'Adresse e-mail' : 'Email address',
+              keyboardType: TextInputType.emailAddress,
+            ),
+            if (dialogError != null) ...[
+              const SizedBox(height: 10),
+              Text(dialogError!, style: GoogleFonts.dmSans(color: C.error, fontSize: 12)),
+            ],
+          ]);
+
+          // ── Step 2: set new password ───────────────────────────────────────
+          final step2Content = Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.green.withOpacity(0.3))),
+              child: Row(children: [
+                const Icon(Icons.check_circle_outline, color: Colors.green, size: 16),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  isAr ? 'تم التحقق من حسابك ✅ أدخل كلمة المرور الجديدة.'
+                      : lang == 'fr' ? 'Compte vérifié ✅ Entrez votre nouveau mot de passe.'
+                      : 'Account verified ✅ Enter your new password.',
+                  style: GoogleFonts.dmSans(color: Colors.green, fontSize: 12),
+                )),
+              ]),
+            ),
+            const SizedBox(height: 16),
+            _DialogField(
+              ctrl: p1Ctrl,
+              label: isAr ? 'كلمة المرور الجديدة' : lang == 'fr' ? 'Nouveau mot de passe' : 'New password',
+              obscure: true,
+            ),
+            const SizedBox(height: 10),
+            _DialogField(
+              ctrl: p2Ctrl,
+              label: isAr ? 'تأكيد كلمة المرور' : lang == 'fr' ? 'Confirmer le mot de passe' : 'Confirm new password',
+              obscure: true,
+            ),
+            if (dialogError != null) ...[
+              const SizedBox(height: 10),
+              Text(dialogError!, style: GoogleFonts.dmSans(color: C.error, fontSize: 12)),
+            ],
+          ]);
+
+          return Directionality(
+            textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
+            child: AlertDialog(
+              backgroundColor: C.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(
+                  isAr ? '🔑 إعادة تعيين كلمة المرور'
+                      : lang == 'fr' ? '🔑 Réinitialiser le mot de passe'
+                      : '🔑 Reset Password',
+                  style: GoogleFonts.dmSans(color: C.gold, fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  isAr ? 'الخطوة $step من 2'
+                      : lang == 'fr' ? 'Étape $step sur 2'
+                      : 'Step $step of 2',
+                  style: GoogleFonts.dmSans(color: C.muted, fontSize: 11),
+                ),
+              ]),
+              content: SingleChildScrollView(child: step == 1 ? step1Content : step2Content),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(
+                    isAr ? 'إلغاء' : lang == 'fr' ? 'Annuler' : 'Cancel',
+                    style: GoogleFonts.dmSans(color: C.muted),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: C.gold, foregroundColor: C.navy,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                  onPressed: loading ? null : () async {
+                    setS(() { dialogError = null; loading = true; });
+
+                    // ── Step 1: look up account by email ──────────────────
+                    if (step == 1) {
+                      if (eCtrl.text.trim().isEmpty) {
+                        setS(() { loading = false; dialogError = isAr ? 'يرجى إدخال بريدك الإلكتروني'
+                            : lang == 'fr' ? 'Veuillez saisir votre e-mail' : 'Please enter your email'; });
+                        return;
+                      }
+                      final result = await apiService.findAccountByEmail(eCtrl.text.trim());
+                      if (!ctx.mounted) return;
+                      if (result['found'] == true) {
+                        foundUsername = result['username'] ?? '';
+                        setS(() { step = 2; loading = false; });
+                      } else {
+                        setS(() { loading = false; dialogError = isAr
+                            ? 'لا يوجد حساب مرتبط بهذا البريد الإلكتروني'
+                            : lang == 'fr' ? 'Aucun compte associé à cet e-mail'
+                            : 'No account found with this email address'; });
+                      }
+                      return;
+                    }
+
+                    // ── Step 2: reset password ─────────────────────────────
+                    if (p1Ctrl.text.length < 8) {
+                      setS(() { loading = false; dialogError = isAr ? 'كلمة المرور يجب أن تكون 8 أحرف على الأقل'
+                          : lang == 'fr' ? 'Le mot de passe doit contenir au moins 8 caractères'
+                          : 'Password must be at least 8 characters'; });
+                      return;
+                    }
+                    if (p1Ctrl.text != p2Ctrl.text) {
+                      setS(() { loading = false; dialogError = isAr ? 'كلمتا المرور غير متطابقتين'
+                          : lang == 'fr' ? 'Les mots de passe ne correspondent pas'
+                          : 'Passwords do not match'; });
+                      return;
+                    }
+                    final result = await apiService.resetPassword(foundUsername, eCtrl.text.trim(), p1Ctrl.text);
+                    if (!ctx.mounted) return;
+                    if (result['success'] == true) {
+                      Navigator.pop(ctx);
+                      // Auto-fill username on login screen
+                      _u.text = foundUsername;
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                        content: Text(
+                          isAr ? '✅ تم إعادة تعيين كلمة المرور. يمكنك الآن تسجيل الدخول.'
+                              : lang == 'fr' ? '✅ Mot de passe réinitialisé. Connectez-vous maintenant.'
+                              : '✅ Password reset! You can now log in.',
+                          style: GoogleFonts.dmSans(color: Colors.white),
+                        ),
+                        backgroundColor: Colors.green.shade700,
+                        duration: const Duration(seconds: 4),
+                      ));
+                    } else {
+                      setS(() { loading = false; dialogError = result['message']?.toString(); });
+                    }
+                  },
+                  child: loading
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: C.navy))
+                      : Text(
+                          step == 1
+                              ? (isAr ? 'التالي ←' : lang == 'fr' ? 'Suivant →' : 'Next →')
+                              : (isAr ? 'تأكيد' : lang == 'fr' ? 'Confirmer' : 'Confirm'),
+                          style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -752,31 +977,22 @@ class _LoginState extends State<LoginPage> {
               icon: '🔒', ctrl: _p, obscure: _obscure, hasToggle: true, onToggle: () => setState(() => _obscure = !_obscure)),
             const SizedBox(height: 8),
             Align(alignment: _isAr ? Alignment.centerLeft : Alignment.centerRight,
-              child: Text(t('forgot'), style: GoogleFonts.dmSans(color: C.gold, fontSize: 11))),
+              child: GestureDetector(
+                onTap: () => _showForgotPassword(context),
+                child: Text(t('forgot'), style: GoogleFonts.dmSans(
+                  color: C.gold, fontSize: 11,
+                  decoration: TextDecoration.underline,
+                  decorationColor: C.gold,
+                )),
+              )),
             if (_error != null) ...[
               const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: C.error.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: C.error.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline, color: C.error, size: 15),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _error!,
-                        style: GoogleFonts.dmSans(color: C.error, fontSize: 12),
-                      ), 
-                    ),
-                  ],
-                ),
-              ),
+              Container(padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: C.error.withOpacity(0.08), borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: C.error.withOpacity(0.3))),
+                child: Row(children: [const Icon(Icons.error_outline, color: C.error, size: 15), const SizedBox(width: 8),
+                  Expanded(child: Text(_error!, style: GoogleFonts.dmSans(color: C.error, fontSize: 12)))])),
             ],
-            
             const SizedBox(height: 18),
             GoldBtn(label: _loading ? (_isAr ? 'جاري الدخول...' : widget.lang == 'fr' ? 'Connexion...' : 'Signing in...') : t('login'),
               loading: _loading, onTap: _submit),
@@ -812,10 +1028,27 @@ class _RegisterState extends State<RegisterPage> {
 
   void _submit() async {
     if (_u.text.isEmpty || _e.text.isEmpty || _p.text.isEmpty) return;
+    if (!_e.text.contains('@')) { setState(() => _error = widget.lang == 'fr' ? 'Entrez une adresse email valide' : 'Enter a valid email address'); return; }
+    if (_p.text.length < 8) { setState(() => _error = widget.lang == 'fr' ? 'Le mot de passe doit contenir au moins 8 caracteres' : 'Password must be at least 8 characters'); return; }
     if (_p.text != _cp.text) { setState(() => _error = _isAr ? 'كلمتا المرور غير متطابقتين' : widget.lang == 'fr' ? 'Mots de passe différents' : 'Passwords do not match'); return; }
     setState(() { _loading = true; _error = null; });
-    await Future.delayed(const Duration(milliseconds: 1500));
-    widget.onSuccess();
+    final registered = await apiService.register(_u.text.trim(), _e.text.trim(), _p.text, phone: _ph.text.trim());
+    var loggedIn = false;
+    if (registered) {
+      loggedIn = await apiService.isLoggedIn;
+      if (!loggedIn) {
+        loggedIn = await apiService.login(_u.text.trim(), _p.text);
+      }
+    }
+    if (!mounted) return;
+    if (loggedIn) {
+      widget.onSuccess();
+    } else {
+      setState(() {
+        _loading = false;
+        _error = _isAr ? 'تعذر إنشاء الحساب. تحقق من البيانات وحاول مرة أخرى' : widget.lang == 'fr' ? 'Impossible de créer le compte. Vérifiez les informations' : 'Could not create the account. Check the details and try again';
+      });
+    }
   }
 
   @override
@@ -892,6 +1125,7 @@ class ChatPage extends StatefulWidget {
 class _ChatState extends State<ChatPage> {
   final _ctrl = TextEditingController(); final _scroll = ScrollController();
   final List<_Msg> _msgs = []; bool _typing = false;
+  String? _sessionId;
   bool get _isAr => widget.lang == 'ar';
   String t(String k) => T.get(widget.lang, k);
 
@@ -901,18 +1135,58 @@ class _ChatState extends State<ChatPage> {
     'en': ['💰 Check my balance', '📱 Phone recharge', '💸 Transfer money', '🔄 GIMTEL service', '🧾 Pay bills', '💵 Cash withdrawal', '🏪 Merchant payment (B-Pay)', '🔑 Forgot my PIN'],
     'fr': ['💰 Mon solde', '📱 Recharger téléphone', '💸 Transférer de l\'argent', '🔄 Service GIMTEL', '🧾 Payer des factures', '💵 Retirer de l\'argent', '🏪 Paiement marchand (B-Pay)', '🔑 Code PIN oublié'],
   };
-
   void _send(String text) async {
     if (text.trim().isEmpty) return;
     _ctrl.clear();
+
     final result = FAQ.resolve(text);
-    setState(() { _msgs.add(_Msg(text: text, isUser: true, time: DateTime.now(), lang: result['lang']!)); _typing = true; });
+    setState(() {
+      _msgs.add(_Msg(text: text, isUser: true, time: DateTime.now(), lang: result['lang']!));
+      _typing = true;
+    });
     _scrollDown();
-    await Future.delayed(const Duration(milliseconds: 900));
+
+    String answer = result['answer']!;
+    String lang = result['lang']!;
+
+    // Ask the backend so actions and Gemini fallback run server-side.
+    final apiResult = await apiService.sendMessage(text, sessionId: _sessionId);
+    if (apiResult != null) {
+      if (apiResult['error'] != null) {
+        final statusCode = apiResult['status_code'];
+        answer = statusCode == null
+            ? apiResult['error'].toString()
+            : 'Chat backend error ($statusCode): ${apiResult['error']}';
+      } else {
+        _sessionId = apiResult['session_id']?.toString();
+        final botMessage = apiResult['bot_message'];
+        if (botMessage is Map && botMessage['content'] != null) {
+          answer = botMessage['content'].toString();
+        }
+        lang = apiResult['lang']?.toString() ?? lang;
+      }
+    } else {
+      answer = 'Chat backend is unavailable. Check that Django is running and the API URL is correct.';
+    }
+
     if (!mounted) return;
-    setState(() { _typing = false; _msgs.add(_Msg(text: result['answer']!, isUser: false, time: DateTime.now(), lang: result['lang']!)); });
-    _scrollDown();
+    setState(() {
+      _typing = false;
+      _msgs.add(_Msg(text: answer, isUser: false, time: DateTime.now(), lang: lang));
+    });
+     _scrollDown();
   }
+  // void _send(String text) async {
+  //   if (text.trim().isEmpty) return;
+  //   _ctrl.clear();
+  //   final result = FAQ.resolve(text);
+  //   setState(() { _msgs.add(_Msg(text: text, isUser: true, time: DateTime.now(), lang: result['lang']!)); _typing = true; });
+  //   _scrollDown();
+  //   await Future.delayed(const Duration(milliseconds: 900));
+  //   if (!mounted) return;
+  //   setState(() { _typing = false; _msgs.add(_Msg(text: result['answer']!, isUser: false, time: DateTime.now(), lang: result['lang']!)); });
+  //   _scrollDown();
+  // }
 
   void _scrollDown() => WidgetsBinding.instance.addPostFrameCallback((_) {
     if (_scroll.hasClients) _scroll.animateTo(_scroll.position.maxScrollExtent + 200,
@@ -925,7 +1199,10 @@ class _ChatState extends State<ChatPage> {
     child: Scaffold(backgroundColor: C.navy, body: AppBg(child: SafeArea(child: Column(children: [
       _appHeader(widget.lang, t('appName'), widget.onLangChange, [
         _HdrBtn(icon: Icons.history_rounded, onTap: widget.onHistory),
-        _HdrBtn(icon: Icons.add_comment_rounded, onTap: () => setState(() => _msgs.clear())),
+        _HdrBtn(icon: Icons.add_comment_rounded, onTap: () => setState(() {
+          _msgs.clear();
+          _sessionId = null;
+        })),
         _HdrBtn(icon: Icons.logout_rounded, onTap: widget.onLogout),
       ]),
       Expanded(child: _msgs.isEmpty ? _buildEmpty() : _buildMsgs()),
@@ -1018,115 +1295,40 @@ class _HistoryState extends State<HistoryPage> {
   ];
 
   @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: _isAr ? TextDirection.rtl : TextDirection.ltr,
-      child: Scaffold(
-        backgroundColor: C.navy,
-        body: AppBg(
-          child: SafeArea(
-            child: Column(
-              children: [
-                _appHeader(widget.lang, t('history'), (_) {}, [
-                  _HdrBtn(
-                    icon: Icons.arrow_back_rounded,
-                    onTap: widget.onBack,
-                  ),
-                ]),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _sample.length,
-                    itemBuilder: (_, i) {
-                      final s = _sample[i];
-
-                      return GestureDetector(
-                        onTap: widget.onBack,
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.all(15),
-                          decoration: BoxDecoration(
-                            color: C.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: C.gold.withOpacity(0.1),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
-                                blurRadius: 10,
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 42,
-                                height: 42,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  gradient: RadialGradient(
-                                    colors: [
-                                      C.gold.withOpacity(0.15),
-                                      C.gold.withOpacity(0.04),
-                                    ],
-                                  ),
-                                  border: Border.all(
-                                    color: C.gold.withOpacity(0.2),
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.chat_bubble_rounded,
-                                  color: C.gold,
-                                  size: 18,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      s['title'] as String,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: GoogleFonts.dmSans(
-                                        color: C.text,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      '${s['count']} ${t("messages")} • ${s['date']}',
-                                      style: GoogleFonts.dmSans(
-                                        color: C.muted,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(
-                                Icons.chevron_right_rounded,
-                                color: C.muted,
-                                size: 18,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Directionality(
+    textDirection: _isAr ? TextDirection.rtl : TextDirection.ltr,
+    child: Scaffold(backgroundColor: C.navy, body: AppBg(child: SafeArea(child: Column(children: [
+      _appHeader(widget.lang, t('history'), (_) {}, [
+        _HdrBtn(icon: Icons.arrow_back_rounded, onTap: widget.onBack),
+      ]),
+      Expanded(child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _sample.length,
+        itemBuilder: (_, i) {
+          final s = _sample[i];
+          return GestureDetector(onTap: widget.onBack,
+            child: Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: C.gold.withOpacity(0.1)),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10)]),
+              child: Row(children: [
+                Container(width: 42, height: 42,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(12),
+                    gradient: RadialGradient(colors: [C.gold.withOpacity(0.15), C.gold.withOpacity(0.04)]),
+                    border: Border.all(color: C.gold.withOpacity(0.2))),
+                  child: const Icon(Icons.chat_bubble_rounded, color: C.gold, size: 18)),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(s['title'] as String, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.dmSans(color: C.text, fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 3),
+                  Text('${s['count']} ${t("messages")} • ${s['date']}',
+                    style: GoogleFonts.dmSans(color: C.muted, fontSize: 11)),
+                ])),
+                Icon(Icons.chevron_right_rounded, color: C.muted, size: 18),
+              ])));
+        })),
+    ])))));
 }
 
 // ── Bubble ────────────────────────────────────────────────────────────────────

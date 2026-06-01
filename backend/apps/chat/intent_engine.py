@@ -8,6 +8,7 @@ Pipeline:
   4. Else → LLM fallback (optional) or polite "I don't know" reply
 """
 import re
+import logging
 from difflib import SequenceMatcher
 from typing import Optional
 
@@ -17,6 +18,7 @@ from django.core.cache import cache
 from apps.faq.models import FAQItem
 
 
+logger = logging.getLogger(__name__)
 
 
 def _normalize(text: str) -> str:
@@ -45,13 +47,11 @@ def _keyword_score(message_norm: str, keywords: list[str]) -> float:
         if kw_norm in message_norm:
             total += 1.0
         else:
-           
             words = message_norm.split()
             best = max((_similarity(w, kw_norm) for w in words), default=0)
             if best >= 0.80:
                 total += best * 0.5
 
-    
     return min(total / max(len(keywords), 1), 1.0)
 
 
@@ -141,58 +141,88 @@ class IntentEngine:
             }
 
         
-        if settings.OPENAI_API_KEY:
+        if settings.GEMINI_API_KEY:
             try:
-                answer = _llm_fallback(message)
-                return {
-                    "answer": answer,
-                    "intent": "llm_fallback",
-                    "confidence": 0.5,
-                    "faq_id": None,
-                    "source": "fallback",
-                }
+                answer = _gemini_fallback(message)
+                if answer:
+                    return {
+                        "answer": answer,
+                        "intent": "gemini_fallback",
+                        "confidence": 0.7,
+                        "faq_id": None,
+                        "source": "gemini",
+                    }
             except Exception:
-                pass  
-
-        
+                pass
         return {
-            "answer": (
-                "I'm sorry, I don't have a specific answer for that. "
-                "You can reach our support team via live chat, email at support@fintechapp.com, "
-                "or call 1-800-000-0000. Is there anything else I can help you with?"
-            ),
+           "answer": (
+                "عذراً، لم أفهم سؤالك. يمكنني المساعدة في: "
+                "الرصيد، التحويل، الشحن، الفواتير، السحب، جيمتل، B-Pay.\n\n"
+                "Sorry, I didn't understand. I can help with: "
+                "balance, transfer, recharge, bills, withdrawal, GIMTEL, B-Pay."
+                ),
             "intent": "unknown",
             "confidence": 0.0,
             "faq_id": None,
             "source": "fallback",
-        }
+        }        
 
 
 
+import urllib.request
+import json
 
-def _llm_fallback(user_message: str) -> str:
-    """Call OpenAI with a fintech-scoped system prompt."""
-    import openai  
+def _gemini_fallback(user_message: str) -> str:
+    """Free Gemini AI fallback — no pip install needed."""
 
-    client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a helpful customer support assistant for a fintech company. "
-                    "Answer only questions related to personal finance, banking, payments, cards, loans, "
-                    "and account management. Be concise, friendly, and accurate. "
-                    "If a question is outside your scope, politely redirect to human support."
-                ),
-            },
-            {"role": "user", "content": user_message},
-        ],
-        max_tokens=300,
-        temperature=0.3,
+    api_key = settings.GEMINI_API_KEY
+    if not api_key:
+        return None
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+
+    system_prompt = """You are a helpful customer support assistant for a fintech company name Finassist.
+You answer questions about:
+- Account balance and statements
+- Money transfers
+- Phone recharge (Mauritel, Chinguitel, Mattel)
+- Bill payments (electricity, water, internet)
+- Cash withdrawal via agency
+- GIMTEL transfers to other apps (Bankily, Click, Sedad, Masrivi)
+- B-Pay merchant payments
+- Debit cards and cheque books
+- PIN management
+yo can also answer general answer and talk with clients
+
+Answer in the same language the user wrote in (Arabic, French, or English).
+Be concise, friendly and helpful.
+"""
+
+    body = json.dumps({
+        "system_instruction": {
+            "parts": [{"text": system_prompt}]
+        },
+        "contents": [{
+            "parts": [{"text": user_message}]
+        }]
+    }).encode('utf-8')
+
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={'Content-Type': 'application/json'},
+        method='POST'
     )
-    return response.choices[0].message.content.strip()
+
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            result = json.loads(response.read())
+            return result['candidates'][0]['content']['parts'][0]['text']
+    except Exception:
+        return None
+
+
+
 
 
 

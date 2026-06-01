@@ -1,49 +1,36 @@
 """
 Django settings — Fintech Chatbot
 """
-from pathlib import Path
 from datetime import timedelta
+from pathlib import Path
+from urllib.parse import parse_qsl, urlparse
+
 from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config("SECRET_KEY", default="change-me-in-production")
 DEBUG = config("DEBUG", default=False, cast=bool)
-ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="*").split(",")
+ALLOWED_HOSTS = [host.strip() for host in config("ALLOWED_HOSTS", default="*").split(",")]
 
-# INSTALLED_APPS = [
-#     "django.contrib.admin",
-#     "django.contrib.auth",
-#     "django.contrib.contenttypes",
-#     "django.contrib.sessions",
-#     "django.contrib.messages",
-#     "django.contrib.staticfiles",
-#     # Third-party
-#     "rest_framework",
-#     "rest_framework_simplejwt",
-#     "corsheaders",
-#     # Local
-#     "apps.accounts",
-#     "apps.chat",
-#     "apps.faq",
-# ]
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'rest_framework',
-    'rest_framework_simplejwt',
-    'corsheaders',
-    'apps.accounts',
-    'apps.chat',
-    'apps.faq',
-    'apps.wallet',    
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "corsheaders",
+    "apps.accounts",
+    "apps.chat",
+    "apps.faq",
+    "apps.wallet",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -73,8 +60,25 @@ TEMPLATES = [
 ]
 
 # ── Database ────────────────────────────────────────────────────────────────
+def database_from_url(url: str) -> dict:
+    parsed = urlparse(url)
+    options = dict(parse_qsl(parsed.query))
+    return {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": parsed.path.lstrip("/"),
+        "USER": parsed.username or "",
+        "PASSWORD": parsed.password or "",
+        "HOST": parsed.hostname or "",
+        "PORT": parsed.port or "",
+        "OPTIONS": options,
+    }
+
+
+database_url = config("DATABASE_URL", default="")
 DATABASES = {
-    "default": {
+    "default": database_from_url(database_url)
+    if database_url
+    else {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": config("DB_NAME", default="fintech_chatbot"),
         "USER": config("DB_USER", default="postgres"),
@@ -85,18 +89,21 @@ DATABASES = {
 }
 
 # ── Redis cache ──────────────────────────────────────────────────────────────
-# CACHES = {
-#     "default": {
-#         "BACKEND": "django_redis.cache.RedisCache",
-#         "LOCATION": config("REDIS_URL", default="redis://127.0.0.1:6379/1"),
-#         "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
-#     }
-# }
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+_redis_url = config("REDIS_URL", default="")
+if _redis_url:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": _redis_url,
+            "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
+        }
     }
-}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
 
 
 
@@ -106,10 +113,6 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
-    # "DEFAULT_THROTTLE_CLASSES": [
-    #     "rest_framework.throttling.UserRateThrottle",
-    # ],
-    # "DEFAULT_THROTTLE_RATES": {"user": "60/min"},
 }
 
 # ── JWT ──────────────────────────────────────────────────────────────────────
@@ -120,21 +123,45 @@ SIMPLE_JWT = {
 }
 
 # ── CORS ─────────────────────────────────────────────────────────────────────
-CORS_ALLOW_ALL_ORIGINS = True  # restrict in production
+CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=DEBUG, cast=bool)
 CORS_ALLOWED_ORIGINS = config(
     "CORS_ORIGINS", default="http://localhost:8080"
 ).split(",")
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://localhost:\d+$",
+    r"^http://127\.0\.0\.1:\d+$",
+]
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in config("CSRF_TRUSTED_ORIGINS", default="").split(",")
+    if origin.strip()
+]
+
+# ── Static files ────────────────────────────────────────────────────────────
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # ── Auth user ────────────────────────────────────────────────────────────────
 AUTH_USER_MODEL = "accounts.User"
 
 # ── Optional LLM fallback ────────────────────────────────────────────────────
 OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
+OPENAI_BASE_URL = config("OPENAI_BASE_URL", default="https://openrouter.ai/api/v1")
+OPENAI_MODEL = config("OPENAI_MODEL", default="meta-llama/llama-3.3-8b-instruct:free")
 ANTHROPIC_API_KEY = config("ANTHROPIC_API_KEY", default="")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
+
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=not DEBUG, cast=bool)
+CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=not DEBUG, cast=bool)
+GEMINI_API_KEY = config("GEMINI_API_KEY", default="")
+GEMINI_MODEL = config("GEMINI_MODEL", default="gemini-2.5-flash")

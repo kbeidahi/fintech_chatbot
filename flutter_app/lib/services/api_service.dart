@@ -1,8 +1,11 @@
-// lib/services/api_service.dart
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-const _baseUrl = 'http://localhost:8000/api';
+const _baseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://localhost:8000/api',
+);
 
 class ApiService {
   late final Dio _dio;
@@ -19,13 +22,14 @@ class ApiService {
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
         final token = await _storage.read(key: 'access_token');
-        if (token != null) {
+        if (token != null && !_isAuthEndpoint(options.path)) {
           options.headers['Authorization'] = 'Bearer $token';
         }
         handler.next(options);
       },
       onError: (error, handler) async {
-        if (error.response?.statusCode == 401) {
+        if (error.response?.statusCode == 401 &&
+            !_isAuthEndpoint(error.requestOptions.path)) {
           final refreshed = await _refreshToken();
           if (refreshed) {
             final token = await _storage.read(key: 'access_token');
@@ -40,18 +44,38 @@ class ApiService {
     ));
   }
 
+  bool _isAuthEndpoint(String path) =>
+      path.contains('/auth/login/') ||
+      path.contains('/auth/register/') ||
+      path.contains('/auth/refresh/');
+
   // ── Auth ──────────────────────────────────────────────────────────────────
 
   Future<bool> login(String username, String password) async {
     try {
+      await logout();
+      final cleanUsername = username.trim();
       final res = await _dio.post('/auth/login/', data: {
-        'username': username,
+        'username': cleanUsername,
         'password': password,
       });
-      await _storage.write(key: 'access_token', value: res.data['access']);
-      await _storage.write(key: 'refresh_token', value: res.data['refresh']);
+      final access = res.data['access'] as String?;
+      final refresh = res.data['refresh'] as String?;
+      if (access == null || refresh == null) return false;
+      await _storage.write(key: 'access_token', value: access);
+      await _storage.write(key: 'refresh_token', value: refresh);
+
+      final profile = await getProfile();
+      if (profile == null ||
+          (profile['username'] != cleanUsername &&
+              profile['email'] != cleanUsername)) {
+        await logout();
+        return false;
+      }
+
       return true;
     } catch (_) {
+      await logout();
       return false;
     }
   }
@@ -59,12 +83,18 @@ class ApiService {
   Future<bool> register(String username, String email, String password,
       {String phone = ''}) async {
     try {
-      await _dio.post('/auth/register/', data: {
-        'username': username,
-        'email': email,
+      final res = await _dio.post('/auth/register/', data: {
+        'username': username.trim(),
+        'email': email.trim(),
         'password': password,
-        'phone': phone,
+        'phone': phone.trim(),
       });
+      final access = res.data['access'] as String?;
+      final refresh = res.data['refresh'] as String?;
+      if (access != null && refresh != null) {
+        await _storage.write(key: 'access_token', value: access);
+        await _storage.write(key: 'refresh_token', value: refresh);
+      }
       return true;
     } catch (_) {
       return false;
@@ -84,11 +114,51 @@ class ApiService {
     }
   }
 
-  Future<void> logout() async => await _storage.deleteAll();
+  Future<void> logout() => _storage.deleteAll();
 
   Future<bool> get isLoggedIn async {
     final token = await _storage.read(key: 'access_token');
     return token != null;
+  }
+
+  Future<Map<String, dynamic>> findAccountByEmail(String email) async {
+    try {
+      final res = await _dio.post('/auth/find-account/', data: {'email': email.trim()});
+      return {'found': true, 'username': res.data['username']};
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return {'found': false};
+      return {'found': false};
+    } catch (_) {
+      return {'found': false};
+    }
+  }
+
+  Future<Map<String, dynamic>> resetPassword(
+      String username, String email, String newPassword) async {
+    try {
+      final res = await _dio.post('/auth/reset-password/', data: {
+        'username': username.trim(),
+        'email': email.trim(),
+        'new_password': newPassword,
+      });
+      return {'success': true, 'message': res.data['message'] ?? 'Password reset successfully.'};
+    } on DioException catch (e) {
+      final msg = e.response?.data is Map
+          ? (e.response!.data['error'] ?? 'Reset failed.')
+          : 'Reset failed.';
+      return {'success': false, 'message': msg.toString()};
+    } catch (_) {
+      return {'success': false, 'message': 'Could not connect to server.'};
+    }
+  }
+
+  Future<Map<String, dynamic>?> getProfile() async {
+    try {
+      final res = await _dio.get('/auth/profile/');
+      return Map<String, dynamic>.from(res.data as Map);
+    } catch (_) {
+      return null;
+    }
   }
 
   // ── Chat ──────────────────────────────────────────────────────────────────
@@ -101,8 +171,21 @@ class ApiService {
         if (sessionId != null) 'session_id': sessionId,
       });
       return res.data as Map<String, dynamic>;
-    } catch (_) {
-      return null;
+    } on DioException catch (error) {
+      final statusCode = error.response?.statusCode;
+      final responseData = error.response?.data;
+      debugPrint('Chat API failed: ${statusCode ?? error.type} $responseData');
+      return {
+        'error': responseData is Map && responseData['error'] != null
+            ? responseData['error'].toString()
+            : 'Chat backend is unavailable. Check that Django is running and the API URL is correct.',
+        if (statusCode != null) 'status_code': statusCode,
+      };
+    } catch (error) {
+      debugPrint('Chat API failed: $error');
+      return {
+        'error': 'Chat backend is unavailable. Check that Django is running and the API URL is correct.',
+      };
     }
   }
 

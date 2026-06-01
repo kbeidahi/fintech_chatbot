@@ -14,7 +14,7 @@ class ChatSession(models.Model):
     )
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
-    title = models.CharField(max_length=200, blank=True)  # auto-set from first message
+    title = models.CharField(max_length=200, blank=True)  
 
     class Meta:
         ordering = ["-started_at"]

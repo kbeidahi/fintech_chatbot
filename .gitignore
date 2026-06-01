@@ -1,0 +1,36 @@
+# Python virtual environment
+venv/
+env/
+.env
+*.pyc
+__pycache__/
+*.pyo
+
+# Django
+backend/.env
+backend/staticfiles/
+backend/db.sqlite3
+*.log
+
+# Flutter
+flutter_app/build/
+flutter_app/.dart_tool/
+flutter_app/.flutter-plugins
+flutter_app/.flutter-plugins-dependencies
+flutter_app/.packages
+flutter_app/pubspec.lock
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+ai_diag_output.txt
+DEPLOYMENT.md
+flutter_app/flutter_version*.txt
