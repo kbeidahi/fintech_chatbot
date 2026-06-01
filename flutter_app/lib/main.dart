@@ -554,6 +554,8 @@ class _FinAssistAppState extends State<FinAssistApp> {
 
   Widget _buildScreen() {
     switch (_screen) {
+      case 'pin_setup':
+        return PinSetupPage(lang: _lang, onDone: () => _nav('main'));
       case 'register':
         return RegisterPage(lang: _lang, onLangChange: _setLang, onSuccess: _login, onLogin: () => _nav('login'));
       case 'history':
