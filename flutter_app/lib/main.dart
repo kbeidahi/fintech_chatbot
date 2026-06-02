@@ -695,7 +695,7 @@ class _PinPad extends StatefulWidget {
   final String title, subtitle;
   final void Function(String pin) onCompleted;
   final VoidCallback? onCancel;
-  const _PinPad({required this.title, required this.subtitle,
+  const _PinPad({super.key, required this.title, required this.subtitle,
     required this.onCompleted, this.onCancel});
   @override State<_PinPad> createState() => _PinPadState();
 }
