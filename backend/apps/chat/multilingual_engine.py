@@ -332,12 +332,34 @@ ACTION_KEYWORDS = {
 }
 
 
+_INQUIRY_WORDS = [
+    # English
+    'how', 'what', 'why', 'where', 'when', 'can i', 'do i', 'should i',
+    'how do', 'how can', 'how to', 'how does', 'is it', 'tell me',
+    # French
+    'comment', 'pourquoi', 'qu est', 'quel', 'quelle', 'où', 'est ce',
+    'comment faire', 'comment puis', 'expliquer', 'expliquez',
+    # Arabic
+    'كيف', 'ماذا', 'ما هو', 'ما هي', 'أين', 'متى', 'لماذا',
+    'كيف أ', 'كيف يمكن', 'اشرح', 'وضح', 'ممكن تشرح',
+]
+
+
+def _is_inquiry(norm: str) -> bool:
+    """Return True if the message is a question/inquiry rather than a command."""
+    return any(word in norm for word in _INQUIRY_WORDS)
+
+
 def detect_action(norm: str, lang: str) -> Optional[str]:
     """
     Returns the action type only if the message looks like a COMMAND
     (contains action keyword + typically an amount or target).
     Simple inquiry questions like 'how do I transfer?' won't match.
     """
+    # Inquiry phrasing overrides action detection for all types
+    if _is_inquiry(norm):
+        return None
+
     for action, lang_kws in ACTION_KEYWORDS.items():
         kws = lang_kws.get(lang, [])
         for kw in kws:
