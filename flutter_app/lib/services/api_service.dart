@@ -4,7 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 const _baseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'http://localhost:8000/api',
+  defaultValue: 'https://fintech-chatbot-api.onrender.com/api',
 );
 
 class ApiService {
