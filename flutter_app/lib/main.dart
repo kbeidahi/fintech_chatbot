@@ -1407,19 +1407,34 @@ class _ChatState extends State<ChatPage> {
   // اقتراحات سريعة مخصصة
   final _sugs = {
     'ar': [
-      '💰 رصيد', '💸 حول 500 إلى ahmed', '📱 شحن 22334455 100',
-      '🧾 دفع فاتورة كهرباء 500', '💵 سحب 1000',
-      '❓ كيف أحول الأموال؟', '❓ كيف أدفع الفواتير؟', '🔑 نسيت رقمي السري',
+      '💰 كيف أعرف رصيدي؟',
+      '💸 كيف أحول الأموال؟',
+      '📱 كيف أشحن هاتفي؟',
+      '🧾 كيف أدفع الفواتير؟',
+      '💵 كيف أسحب الأموال؟',
+      '🏪 ما هو B-Pay؟',
+      '🔄 ما هي خدمة GIMTEL؟',
+      '🔑 كيف أغير رقمي السري؟',
     ],
     'en': [
-      '💰 balance', '💸 transfer 500 to ahmed', '📱 topup 22334455 100',
-      '🧾 pay bill electricity 500', '💵 withdraw 1000',
-      '❓ how to transfer?', '❓ how to pay bills?', '🔑 forgot my PIN',
+      '💰 How do I check my balance?',
+      '💸 How do I transfer money?',
+      '📱 How do I recharge my phone?',
+      '🧾 How do I pay bills?',
+      '💵 How do I withdraw cash?',
+      '🏪 What is B-Pay?',
+      '🔄 What is GIMTEL?',
+      '🔑 How do I change my PIN?',
     ],
     'fr': [
-      '💰 solde', '💸 virer 500 à ahmed', '📱 recharge 22334455 100',
-      '🧾 payer facture électricité 500', '💵 retrait 1000',
-      '❓ comment virer?', '❓ comment payer les factures?', '🔑 code PIN oublié',
+      '💰 Comment consulter mon solde?',
+      '💸 Comment faire un virement?',
+      '📱 Comment recharger mon téléphone?',
+      '🧾 Comment payer mes factures?',
+      '💵 Comment retirer de l\'argent?',
+      '🏪 C\'est quoi le B-Pay?',
+      '🔄 C\'est quoi GIMTEL?',
+      '🔑 Comment changer mon code PIN?',
     ],
   };
   void _send(String text) async {
