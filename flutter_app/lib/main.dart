@@ -1437,7 +1437,24 @@ class _ChatState extends State<ChatPage> {
     String lang = detectedLang;
     String source = 'faq';
 
-    final apiResult = await apiService.sendMessage(text, sessionId: _sessionId);
+    var apiResult = await apiService.sendMessage(text, sessionId: _sessionId);
+
+    // If the backend says PIN is required, show the PIN pad and resend
+    if (apiResult != null && apiResult['source'] == 'pin_required') {
+      setState(() => _typing = false);
+      final pin = await showPinSheet(context,
+        title: _isAr ? 'أدخل رقمك السري' : widget.lang == 'fr' ? 'Entrez votre code PIN' : 'Enter your PIN',
+        subtitle: _isAr ? 'للتأكيد على العملية' : widget.lang == 'fr' ? 'Pour confirmer l\'opération' : 'To confirm the operation');
+      if (pin == null) {
+        // User cancelled — drop the action silently
+        if (!mounted) return;
+        setState(() => _typing = false);
+        return;
+      }
+      setState(() => _typing = true);
+      apiResult = await apiService.sendMessageWithPin(text, sessionId: _sessionId, pin: pin);
+    }
+
     if (apiResult != null) {
       if (apiResult['error'] != null) {
         final statusCode = apiResult['status_code'];
