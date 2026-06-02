@@ -1919,15 +1919,38 @@ class HistoryPage extends StatefulWidget {
 class _HistoryState extends State<HistoryPage> {
   bool get _isAr => widget.lang == 'ar';
   String t(String k) => T.get(widget.lang, k);
+  String get _lang => widget.lang;
 
-  final _sample = [
-    {'title': 'كيف أشحن هاتفي؟', 'count': 3, 'date': 'اليوم 14:32'},
-    {'title': 'ما هو رصيدي؟', 'count': 2, 'date': 'اليوم 11:15'},
-    {'title': 'خدمة جيمتل GIMTEL', 'count': 4, 'date': 'أمس 18:42'},
-    {'title': 'كيف أدفع الفواتير؟', 'count': 6, 'date': 'أمس 09:11'},
-    {'title': 'Comment recharger mon téléphone?', 'count': 3, 'date': '27/04/2026'},
-    {'title': 'Cash withdrawal via agency', 'count': 5, 'date': '25/04/2026'},
-  ];
+  List<dynamic> _sessions = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final result = await apiService.getSessions();
+    if (!mounted) return;
+    setState(() { _sessions = result; _loading = false; });
+  }
+
+  String _formatDate(String? raw) {
+    if (raw == null) return '';
+    try {
+      final dt = DateTime.parse(raw).toLocal();
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final day   = DateTime(dt.year, dt.month, dt.day);
+      final hm    = '${dt.hour.toString().padLeft(2,"0")}:${dt.minute.toString().padLeft(2,"0")}';
+      if (day == today) {
+        return (_lang == 'ar') ? 'اليوم $hm' : (_lang == 'fr') ? 'Aujourd\'hui $hm' : 'Today $hm';
+      }
+      if (day == today.subtract(const Duration(days: 1))) {
+        return (_lang == 'ar') ? 'أمس $hm' : (_lang == 'fr') ? 'Hier $hm' : 'Yesterday $hm';
+      }
+      return '${dt.day.toString().padLeft(2,"0")}/${dt.month.toString().padLeft(2,"0")}/${dt.year}';
+    } catch (_) { return raw; }
+  }
 
   @override
   Widget build(BuildContext context) => Directionality(
@@ -1936,33 +1959,49 @@ class _HistoryState extends State<HistoryPage> {
       _appHeader(widget.lang, t('history'), (_) {}, [
         _HdrBtn(icon: Icons.arrow_back_rounded, onTap: widget.onBack),
       ]),
-      Expanded(child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _sample.length,
-        itemBuilder: (_, i) {
-          final s = _sample[i];
-          return GestureDetector(onTap: widget.onBack,
-            child: Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: C.gold.withOpacity(0.1)),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10)]),
-              child: Row(children: [
-                Container(width: 42, height: 42,
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(12),
-                    gradient: RadialGradient(colors: [C.gold.withOpacity(0.15), C.gold.withOpacity(0.04)]),
-                    border: Border.all(color: C.gold.withOpacity(0.2))),
-                  child: const Icon(Icons.chat_bubble_rounded, color: C.gold, size: 18)),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(s['title'] as String, maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.dmSans(color: C.text, fontSize: 13, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 3),
-                  Text('${s['count']} ${t("messages")} • ${s['date']}',
-                    style: GoogleFonts.dmSans(color: C.muted, fontSize: 11)),
-                ])),
-                Icon(Icons.chevron_right_rounded, color: C.muted, size: 18),
-              ])));
-        })),
+      Expanded(child: _loading
+        ? const Center(child: CircularProgressIndicator(color: C.gold, strokeWidth: 2))
+        : _sessions.isEmpty
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.chat_bubble_outline_rounded, color: C.muted, size: 48),
+              const SizedBox(height: 12),
+              Text(t('noHistory'), style: GoogleFonts.dmSans(color: C.muted, fontSize: 14)),
+            ]))
+          : RefreshIndicator(
+              onRefresh: _load,
+              color: C.gold,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _sessions.length,
+                itemBuilder: (_, i) {
+                  final s = _sessions[i] as Map;
+                  final title = s['title']?.toString() ?? '...';
+                  final count = s['message_count'] ?? 0;
+                  final date  = _formatDate(s['started_at']?.toString());
+                  return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(color: C.surface, borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: C.gold.withOpacity(0.15)),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)]),
+                    child: Row(children: [
+                      Container(width: 42, height: 42,
+                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12),
+                          color: C.gold.withOpacity(0.1),
+                          border: Border.all(color: C.gold.withOpacity(0.2))),
+                        child: const Icon(Icons.chat_bubble_rounded, color: C.gold, size: 18)),
+                      const SizedBox(width: 12),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.dmSans(color: C.text, fontSize: 13, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 3),
+                        Text('$count ${t("messages")} • $date',
+                          style: GoogleFonts.dmSans(color: C.muted, fontSize: 11)),
+                      ])),
+                      Icon(Icons.chevron_right_rounded, color: C.muted, size: 18),
+                    ]));
+                },
+              ),
+            ),
+      ),
     ])))));
 }
 
