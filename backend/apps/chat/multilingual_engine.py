@@ -548,6 +548,13 @@ class MultilingualIntentEngine:
                         }
 
         # ════════════════════════════════════════════════════════════════════
+        # LAYER 1.5 — SOCIAL / COURTESY (thank you, bye, compliments…)
+        # ════════════════════════════════════════════════════════════════════
+        social = _match_social(norm, lang)
+        if social:
+            return {'answer': social, 'intent': 'social', 'lang': lang, 'source': 'faq'}
+
+        # ════════════════════════════════════════════════════════════════════
         # LAYER 2 — INQUIRY (FAQ + Gemini)
         # ════════════════════════════════════════════════════════════════════
         best_item, best_score = _match_faq(norm, lang)
@@ -585,3 +592,110 @@ class MultilingualIntentEngine:
 
 
 multilingual_engine = MultilingualIntentEngine()
+
+
+# ── Social / courtesy matcher ─────────────────────────────────────────────────
+
+_SOCIAL_PATTERNS = [
+    # Thank you
+    {
+        'kw': {
+            'ar': ['شكرا', 'شكراً', 'شكرا جزيلا', 'ممنون', 'مشكور', 'بارك الله', 'جزاك الله'],
+            'fr': ['merci', 'merci beaucoup', 'je vous remercie', 'grand merci'],
+            'en': ['thank you', 'thanks', 'thank u', 'thx', 'ty', 'many thanks', 'thanks a lot'],
+        },
+        'reply': {
+            'ar': '😊 على الرحب والسعة! يسعدني مساعدتك في أي وقت. هل هناك شيء آخر؟',
+            'fr': '😊 Avec plaisir ! Je suis toujours là pour vous aider. Autre chose ?',
+            'en': '😊 You\'re welcome! Happy to help anytime. Is there anything else I can do for you?',
+        },
+    },
+    # Goodbye
+    {
+        'kw': {
+            'ar': ['مع السلامة', 'وداعا', 'الى اللقاء', 'باي', 'وداع', 'سلام'],
+            'fr': ['au revoir', 'bonne journée', 'bonne nuit', 'à bientôt', 'bye', 'ciao', 'salut'],
+            'en': ['bye', 'goodbye', 'good bye', 'see you', 'see ya', 'take care', 'good night', 'good day'],
+        },
+        'reply': {
+            'ar': '👋 مع السلامة! أتمنى لك يوماً رائعاً. لا تتردد في العودة إذا احتجت مساعدة!',
+            'fr': '👋 Au revoir ! Bonne journée, et n\'hésitez pas à revenir si vous avez besoin d\'aide !',
+            'en': '👋 Goodbye! Have a wonderful day. Don\'t hesitate to come back if you need anything!',
+        },
+    },
+    # Great / perfect / awesome
+    {
+        'kw': {
+            'ar': ['رائع', 'ممتاز', 'عظيم', 'جميل', 'تمام', 'حلو', 'مذهل', 'ولا أروع'],
+            'fr': ['parfait', 'excellent', 'super', 'génial', 'fantastique', 'bravo', 'très bien', 'nickel'],
+            'en': ['great', 'perfect', 'excellent', 'awesome', 'amazing', 'wonderful', 'fantastic', 'nice', 'cool', 'brilliant'],
+        },
+        'reply': {
+            'ar': '🌟 سعيد بأنك راضٍ! هل يمكنني مساعدتك في شيء آخر؟',
+            'fr': '🌟 Ravi que cela vous convienne ! Puis-je vous aider avec autre chose ?',
+            'en': '🌟 Glad to hear that! Can I help you with anything else?',
+        },
+    },
+    # OK / alright / understood
+    {
+        'kw': {
+            'ar': ['حسنا', 'حسناً', 'اوكي', 'موافق', 'فهمت', 'مفهوم', 'واضح', 'اوك'],
+            'fr': ['ok', 'okay', 'd\'accord', 'compris', 'entendu', 'bien noté'],
+            'en': ['ok', 'okay', 'alright', 'got it', 'understood', 'i see', 'noted', 'sure'],
+        },
+        'reply': {
+            'ar': '👍 ممتاز! هل تحتاج إلى مساعدة في أي شيء آخر؟',
+            'fr': '👍 Bien ! Y a-t-il autre chose que je puisse faire pour vous ?',
+            'en': '👍 Great! Is there anything else I can help you with?',
+        },
+    },
+    # Sorry / apology
+    {
+        'kw': {
+            'ar': ['آسف', 'اسف', 'معذرة', 'عفوا', 'أعتذر', 'اعتذر'],
+            'fr': ['désolé', 'pardon', 'excusez-moi', 'je m\'excuse', 'toutes mes excuses'],
+            'en': ['sorry', 'i\'m sorry', 'my apologies', 'apologies', 'excuse me', 'pardon'],
+        },
+        'reply': {
+            'ar': '😊 لا داعي للاعتذار! أنا هنا للمساعدة. كيف يمكنني خدمتك؟',
+            'fr': '😊 Pas de souci du tout ! Je suis là pour vous aider. Comment puis-je vous être utile ?',
+            'en': '😊 No worries at all! I\'m here to help. What can I do for you?',
+        },
+    },
+    # Compliment the bot
+    {
+        'kw': {
+            'ar': ['أنت رائع', 'أنت ذكي', 'مساعد ممتاز', 'خدمة رائعة', 'تطبيق ممتاز'],
+            'fr': ['tu es super', 'vous êtes super', 'excellent service', 'très utile', 'bien fait'],
+            'en': ['you are great', 'you\'re great', 'you\'re amazing', 'good bot', 'great service', 'very helpful', 'well done'],
+        },
+        'reply': {
+            'ar': '🤩 شكراً جزيلاً! يسعدني دائماً خدمتك. لا تتردد في السؤال عن أي شيء!',
+            'fr': '🤩 Merci beaucoup ! C\'est un plaisir de vous aider. N\'hésitez pas à poser vos questions !',
+            'en': '🤩 Thank you so much! It\'s a pleasure to assist you. Feel free to ask me anything!',
+        },
+    },
+    # Please / need help
+    {
+        'kw': {
+            'ar': ['ساعدني', 'محتاج مساعدة', 'ابي مساعدة', 'اريد مساعدة'],
+            'fr': ['aidez-moi', 'j\'ai besoin d\'aide', 'pouvez-vous m\'aider', 'je ne sais pas'],
+            'en': ['help me', 'i need help', 'can you help', 'please help', 'i don\'t know'],
+        },
+        'reply': {
+            'ar': '🙋 بكل سرور! أخبرني بما تحتاجه وسأساعدك فوراً 😊\n\nيمكنني مساعدتك في:\n💰 الرصيد • 💸 التحويل • 📱 الشحن\n🧾 الفواتير • 💵 السحب • 🔑 الرقم السري',
+            'fr': '🙋 Bien sûr ! Dites-moi ce dont vous avez besoin et je vous aiderai immédiatement 😊\n\nJe peux vous aider avec:\n💰 Solde • 💸 Virement • 📱 Recharge\n🧾 Factures • 💵 Retrait • 🔑 Code PIN',
+            'en': '🙋 Of course! Tell me what you need and I\'ll help right away 😊\n\nI can assist with:\n💰 Balance • 💸 Transfer • 📱 Top-up\n🧾 Bills • 💵 Withdrawal • 🔑 PIN',
+        },
+    },
+]
+
+
+def _match_social(norm: str, lang: str) -> str | None:
+    """Return a social reply if the message matches a courtesy pattern, else None."""
+    for pattern in _SOCIAL_PATTERNS:
+        keywords = pattern['kw'].get(lang, pattern['kw']['en'])
+        for kw in keywords:
+            if kw in norm:
+                return pattern['reply'].get(lang, pattern['reply']['en'])
+    return None
