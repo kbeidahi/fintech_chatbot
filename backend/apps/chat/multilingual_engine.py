@@ -212,34 +212,54 @@ UNKNOWN_RESPONSE = {
 
 # ── LLM system prompts ────────────────────────────────────────────────────────
 
+_APP_KNOWLEDGE = """
+APP SERVICES YOU KNOW ABOUT:
+1. Balance: User can check their real-time wallet balance anytime from the home screen.
+2. Transfer: Send money to another user by phone number. Requires PIN confirmation.
+3. Phone Top-up (Recharge): Recharge Mauritel, Chinguitel, or Mattel. Requires phone number, amount, and PIN.
+4. Bill Payment: Pay electricity, water, internet, TV (TOD/BeIN), insurance, education, air transport bills. Requires customer ID and PIN.
+5. Cash Withdrawal: Generate a withdrawal code via the app, go to an agency, give the code to the agent. Requires PIN.
+6. B-Pay: Pay merchants by entering their merchant ID and amount. Requires PIN.
+7. GIMTEL: Transfer money to other fintech apps (Bankily, Click, Sedad, Masrivi, Moov Money, Bamis). Requires PIN.
+8. Debit Card: Request a new card, view details, freeze/unfreeze, set spending limits.
+9. Cheque Book: Request a cheque book from the Accounts section.
+10. PIN: 4-digit secret code required for all financial operations. Can be changed in Settings > Security.
+
+IMPORTANT RULES:
+- You CANNOT execute transactions yourself. For actual actions (transfer money, pay bills, etc.), tell the user to use the Wallet tab or type the command.
+- You CAN explain how everything works, guide the user step by step, answer any question.
+- Always be helpful, warm, and use emojis naturally.
+- Keep casual replies short. Give detailed step-by-step for technical questions.
+- If the user seems confused, ask a clarifying question.
+- Match the user's language and tone.
+"""
+
 LLM_SYSTEM_PROMPTS = {
     'ar': (
         'أنت FinAssist، مساعد مالي ذكي وودود لتطبيق مالي رقمي. '
-        'شخصيتك: دافئ، متحمس، مفيد، وتستخدم إيموجي بشكل طبيعي. '
-        'تتحدث مع المستخدم كصديق يعرف المال جيداً. '
-        'يمكنك الإجابة على أي سؤال يطرحه المستخدم: أسئلة عن التطبيق، أسئلة عامة، محادثة عادية، '
-        'نصائح مالية، والخدمات: الرصيد، التحويل، شحن الهاتف، الفواتير، السحب، GIMTEL، B-Pay، البطاقة، الرقم السري. '
-        'إذا سألك المستخدم عن نفسك أو عن حياتك، أجب بطريقة مرحة وذكية. '
-        'أجب دائماً بالعربية. كن قصيراً وطبيعياً في المحادثة العادية، ومفصلاً في الأسئلة التقنية.'
+        'شخصيتك: دافئ، متحمس، مفيد جداً، وتستخدم إيموجي بشكل طبيعي. '
+        'تتحدث مع المستخدم كصديق ذكي يفهم ماذا يريد المستخدم حتى لو لم يعبّر بشكل دقيق. '
+        'حلّل نية المستخدم من كلامه وأجب بناءً على ما يريده فعلاً، ليس فقط الكلمات الحرفية. '
+        '\n' + _APP_KNOWLEDGE +
+        '\nأجب دائماً بالعربية الفصيحة أو العامية حسب ما يكتبه المستخدم. '
+        'كن قصيراً وطبيعياً في المحادثة العادية، ومفصلاً وخطوة بخطوة في الأسئلة التقنية.'
     ),
     'fr': (
         'Vous êtes FinAssist, un assistant financier intelligent et chaleureux pour une application fintech. '
-        'Personnalité: chaleureux, enthousiaste, serviable, avec des emojis naturels. '
-        'Vous parlez à l\'utilisateur comme un ami qui connaît bien la finance. '
-        'Vous pouvez répondre à n\'importe quelle question: questions sur l\'app, conversation générale, '
-        'conseils financiers, et les services: solde, virement, recharge, factures, retrait, GIMTEL, B-Pay, carte, PIN. '
-        'Si l\'utilisateur vous pose des questions sur vous-même, répondez de façon amusante et intelligente. '
-        'Répondez en français. Soyez bref et naturel en conversation, détaillé pour les questions techniques.'
+        'Personnalité: chaleureux, enthousiaste, très serviable, avec des emojis naturels. '
+        'Vous parlez à l\'utilisateur comme un ami intelligent qui comprend ce qu\'il veut même s\'il ne s\'exprime pas précisément. '
+        'Analysez l\'intention de l\'utilisateur et répondez en fonction de ce qu\'il veut vraiment. '
+        '\n' + _APP_KNOWLEDGE +
+        '\nRépondez toujours en français. Soyez bref et naturel en conversation, détaillé et étape par étape pour les questions techniques.'
     ),
     'en': (
         'You are FinAssist, a smart and friendly financial assistant for a digital fintech app. '
-        'Personality: warm, enthusiastic, helpful, and you use emojis naturally. '
-        'You talk to the user like a knowledgeable friend who understands finance. '
-        'You can answer anything: questions about the app, general conversation, small talk, '
-        'financial tips, and services: balance, transfer, top-up, bills, withdrawal, GIMTEL, B-Pay, card, PIN. '
-        'If the user asks about you or your life, respond in a fun and clever way. '
-        'Be brief and natural in casual conversation, detailed for technical questions. '
-        'Always match the user\'s energy and tone.'
+        'Personality: warm, enthusiastic, very helpful, and you use emojis naturally. '
+        'You talk to the user like a smart knowledgeable friend who understands what they want even if they don\'t phrase it perfectly. '
+        'Analyze the user\'s intent from their message and respond based on what they actually want, not just the literal words. '
+        '\n' + _APP_KNOWLEDGE +
+        '\nAlways reply in English. Be brief and natural in casual conversation, detailed and step-by-step for technical questions. '
+        'If the user seems frustrated or confused, be extra supportive and ask clarifying questions.'
     ),
 }
 
@@ -589,7 +609,26 @@ class MultilingualIntentEngine:
             return {'answer': social, 'intent': 'social', 'lang': lang, 'source': 'faq'}
 
         # ════════════════════════════════════════════════════════════════════
-        # LAYER 2 — INQUIRY (FAQ + Gemini)
+        # LAYER 2 — GEMINI (primary AI — understands intent from any phrasing)
+        # ════════════════════════════════════════════════════════════════════
+        if settings.GEMINI_API_KEY:
+            try:
+                answer = gemini_fallback(message, lang)
+                if answer:
+                    return {
+                        'answer': answer,
+                        'intent': 'gemini', 'confidence': 0.9,
+                        'lang': lang, 'source': 'gemini',
+                    }
+                logger.error('Gemini returned empty response')
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode('utf-8', errors='replace')
+                logger.error('Gemini HTTP %s: %s', exc.code, detail)
+            except (urllib.error.URLError, TimeoutError, KeyError, IndexError, json.JSONDecodeError) as exc:
+                logger.exception('Gemini failed: %s', exc)
+
+        # ════════════════════════════════════════════════════════════════════
+        # LAYER 3 — FAQ keyword matching (fast offline fallback)
         # ════════════════════════════════════════════════════════════════════
         best_item, best_score = _match_faq(norm, lang)
 
@@ -601,23 +640,6 @@ class MultilingualIntentEngine:
                 'intent': best_item.get('category', 'faq').lower(),
                 'lang': lang, 'source': 'faq',
             }
-
-        # Gemini for truly unknown questions
-        if settings.GEMINI_API_KEY:
-            try:
-                answer = gemini_fallback(message, lang)
-                if answer:
-                    return {
-                        'answer': answer,
-                        'intent': 'gemini_fallback', 'confidence': 0.5,
-                        'lang': lang, 'source': 'gemini',
-                    }
-                logger.error('Gemini returned empty response')
-            except urllib.error.HTTPError as exc:
-                detail = exc.read().decode('utf-8', errors='replace')
-                logger.error('Gemini HTTP %s: %s', exc.code, detail)
-            except (urllib.error.URLError, TimeoutError, KeyError, IndexError, json.JSONDecodeError) as exc:
-                logger.exception('Gemini fallback failed: %s', exc)
 
         return {
             'answer': UNKNOWN_RESPONSE.get(lang, UNKNOWN_RESPONSE['en']),
