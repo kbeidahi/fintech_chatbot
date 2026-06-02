@@ -7,17 +7,17 @@ void main() => runApp(const FinAssistApp());
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 class C {
-  static const navy    = Color(0xFF0A0E27);
-  static const navyL   = Color(0xFF131729);
-  static const gold    = Color(0xFFD4A853);
-  static const goldL   = Color(0xFFE8C47A);
-  static const mint    = Color(0xFF00D4AA);
-  static const surface = Color(0xFF1A1F3A);
-  static const surfL   = Color(0xFF242B4D);
-  static const text    = Color(0xFFF0F2FF);
-  static const muted   = Color(0xFF8B93B8);
-  static const error   = Color(0xFFFF6B6B);
-  static const botBub  = Color(0xFF1E2545);
+  static const navy    = Color(0xFFFFFFFF); // main background — white
+  static const navyL   = Color(0xFFF5F7F5); // slightly off-white for inputs
+  static const gold    = Color(0xFF1B8A4A); // emerald green primary
+  static const goldL   = Color(0xFF00C853); // bright emerald accent
+  static const mint    = Color(0xFF00C853); // same bright green
+  static const surface = Color(0xFFFFFFFF); // card surface — white
+  static const surfL   = Color(0xFFEDF7F1); // light green tint for hover/chips
+  static const text    = Color(0xFF1B2D1F); // deep dark green-black for text
+  static const muted   = Color(0xFF6B8F71); // muted green-grey
+  static const error   = Color(0xFFD32F2F); // red
+  static const botBub  = Color(0xFFEDF7F1); // light green tint for bot bubbles
 }
 
 // ── Translations ──────────────────────────────────────────────────────────────
@@ -548,7 +548,7 @@ class _FinAssistAppState extends State<FinAssistApp> {
   Widget build(BuildContext context) => MaterialApp(
     title: 'FinAssist',
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(brightness: Brightness.dark, scaffoldBackgroundColor: C.navy),
+    theme: ThemeData(brightness: Brightness.light, scaffoldBackgroundColor: C.navy),
     home: _buildScreen(),
   );
 
@@ -650,7 +650,7 @@ class _AppBgState extends State<AppBg> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) => Stack(children: [
     Container(decoration: const BoxDecoration(gradient: LinearGradient(
       begin: Alignment.topLeft, end: Alignment.bottomRight,
-      colors: [Color(0xFF0A0E27), Color(0xFF0D1535), Color(0xFF070B1E)]))),
+      colors: [Color(0xFFFFFFFF), Color(0xFFF0FAF4), Color(0xFFE8F5E9)]))),
     CustomPaint(size: MediaQuery.of(context).size, painter: _Grid()),
     AnimatedBuilder(animation: _c, builder: (_, __) => Positioned(top: -80, right: -80,
       child: Container(width: 260, height: 260, decoration: BoxDecoration(shape: BoxShape.circle,
@@ -664,7 +664,7 @@ class _AppBgState extends State<AppBg> with SingleTickerProviderStateMixin {
 
 class _Grid extends CustomPainter {
   @override void paint(Canvas c, Size s) {
-    final p = Paint()..color = C.gold.withOpacity(0.025)..strokeWidth = 1;
+    final p = Paint()..color = C.gold.withOpacity(0.07)..strokeWidth = 1;
     for (double x = 0; x < s.width; x += 38) c.drawLine(Offset(x,0), Offset(x,s.height), p);
     for (double y = 0; y < s.height; y += 38) c.drawLine(Offset(0,y), Offset(s.width,y), p);
   }
@@ -1761,7 +1761,7 @@ class _WalletState extends State<WalletPage> {
             child: Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF1A2050), Color(0xFF0A0E27)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                gradient: const LinearGradient(colors: [Color(0xFF1B8A4A), Color(0xFF0D5C30)], begin: Alignment.topLeft, end: Alignment.bottomRight),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(color: C.gold.withOpacity(0.3), width: 1.5),
                 boxShadow: [BoxShadow(color: C.gold.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 8))],
@@ -1773,17 +1773,17 @@ class _WalletState extends State<WalletPage> {
                     child: const Icon(Icons.account_balance_wallet, color: C.gold, size: 20)),
                   const SizedBox(width: 10),
                   Text(_t('المحفظة الرقمية', 'Portefeuille', 'Digital Wallet'),
-                    style: GoogleFonts.dmSans(color: C.muted, fontSize: 13)),
+                    style: GoogleFonts.dmSans(color: Colors.white70, fontSize: 13)),
                 ]),
                 const SizedBox(height: 16),
                 if (_loading)
                   const CircularProgressIndicator(color: C.gold, strokeWidth: 2)
                 else ...[
                   Text('$balance $currency',
-                    style: GoogleFonts.playfairDisplay(color: C.text, fontSize: 32, fontWeight: FontWeight.w800)),
+                    style: GoogleFonts.playfairDisplay(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 4),
                   Text(_t('الرصيد المتاح', 'Solde disponible', 'Available Balance'),
-                    style: GoogleFonts.dmSans(color: C.muted, fontSize: 12)),
+                    style: GoogleFonts.dmSans(color: Colors.white70, fontSize: 12)),
                 ],
               ]),
             ),
@@ -2052,14 +2052,14 @@ class _BubbleState extends State<_BubbleW> with SingleTickerProviderStateMixin {
               constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.74),
               padding: const EdgeInsets.all(13),
               decoration: BoxDecoration(
-                gradient: u ? const LinearGradient(colors: [Color(0xFF1E3A7A), Color(0xFF2A4F9A)], begin: Alignment.topLeft, end: Alignment.bottomRight) : null,
+                gradient: u ? const LinearGradient(colors: [Color(0xFF1B8A4A), Color(0xFF00C853)], begin: Alignment.topLeft, end: Alignment.bottomRight) : null,
                 color: u ? null : C.botBub,
                 borderRadius: BorderRadius.only(topLeft: const Radius.circular(20), topRight: const Radius.circular(20),
                   bottomLeft: Radius.circular(u ? 20 : 4), bottomRight: Radius.circular(u ? 4 : 20)),
-                border: Border.all(color: u ? Colors.white.withOpacity(0.08) : C.gold.withOpacity(0.12)),
-                boxShadow: [BoxShadow(color: u ? const Color(0xFF1E3A7A).withOpacity(0.4) : Colors.black.withOpacity(0.2), blurRadius: 12, offset: const Offset(0,4))]),
+                border: Border.all(color: u ? C.goldL.withOpacity(0.3) : C.gold.withOpacity(0.15)),
+                boxShadow: [BoxShadow(color: u ? C.gold.withOpacity(0.25) : Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0,4))]),
               child: Directionality(textDirection: ar ? TextDirection.rtl : TextDirection.ltr,
-                child: Text(widget.msg.text, style: GoogleFonts.dmSans(color: C.text, fontSize: 13, height: 1.65)))),
+                child: Text(widget.msg.text, style: GoogleFonts.dmSans(color: u ? Colors.white : C.text, fontSize: 13, height: 1.65)))),
             const SizedBox(height: 3),
             Row(mainAxisSize: MainAxisSize.min, children: [
               if (sourceBadge != null) ...[sourceBadge, const SizedBox(width: 6)],
