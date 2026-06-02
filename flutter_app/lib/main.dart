@@ -26,7 +26,7 @@ class T {
     'en': {
       'appName':'FinAssist','tagline':'Your Smart Financial Guide',
       'login':'Sign In','register':'Create Account','welcome':'Welcome back',
-      'username':'Username','email':'Email Address','phone':'Phone (optional)',
+      'username':'Username','email':'Email Address','phone':'Phone Number *',
       'password':'Password','confirm':'Confirm Password',
       'forgot':'Forgot password?','noAccount':"Don't have an account?",
       'hasAccount':'Already have an account?','hint':'Ask me anything...',
@@ -37,7 +37,7 @@ class T {
     'ar': {
       'appName':'فين أسيست','tagline':'مرشدك المالي الذكي',
       'login':'تسجيل الدخول','register':'إنشاء حساب','welcome':'مرحباً بعودتك',
-      'username':'اسم المستخدم','email':'البريد الإلكتروني','phone':'الهاتف (اختياري)',
+      'username':'اسم المستخدم','email':'البريد الإلكتروني','phone':'رقم الهاتف *',
       'password':'كلمة المرور','confirm':'تأكيد كلمة المرور',
       'forgot':'نسيت كلمة المرور؟','noAccount':'ليس لديك حساب؟',
       'hasAccount':'لديك حساب بالفعل؟','hint':'اسألني أي شيء...',
@@ -48,7 +48,7 @@ class T {
     'fr': {
       'appName':'FinAssist','tagline':'Votre Guide Financier Intelligent',
       'login':'Se Connecter','register':'Créer un Compte','welcome':'Bon retour',
-      'username':"Nom d'utilisateur",'email':'Adresse Email','phone':'Téléphone (optionnel)',
+      'username':"Nom d'utilisateur",'email':'Adresse Email','phone':'Numéro de téléphone *',
       'password':'Mot de passe','confirm':'Confirmer',
       'forgot':'Mot de passe oublié?','noAccount':'Pas de compte?',
       'hasAccount':'Déjà un compte?','hint':'Posez-moi une question...',
@@ -1297,6 +1297,7 @@ class _RegisterState extends State<RegisterPage> {
 
   void _submit() async {
     if (_u.text.isEmpty || _e.text.isEmpty || _p.text.isEmpty) return;
+    if (_ph.text.trim().isEmpty) { setState(() => _error = _isAr ? 'رقم الهاتف مطلوب' : widget.lang == 'fr' ? 'Le numéro de téléphone est obligatoire' : 'Phone number is required'); return; }
     if (!_e.text.contains('@')) { setState(() => _error = widget.lang == 'fr' ? 'Entrez une adresse email valide' : 'Enter a valid email address'); return; }
     if (_p.text.length < 8) { setState(() => _error = widget.lang == 'fr' ? 'Le mot de passe doit contenir au moins 8 caracteres' : 'Password must be at least 8 characters'); return; }
     if (_p.text != _cp.text) { setState(() => _error = _isAr ? 'كلمتا المرور غير متطابقتين' : widget.lang == 'fr' ? 'Mots de passe différents' : 'Passwords do not match'); return; }
@@ -1674,7 +1675,7 @@ class _WalletState extends State<WalletPage> {
           title: Text(titles[type]!, style: GoogleFonts.dmSans(color: C.gold, fontWeight: FontWeight.w700, fontSize: 16)),
           content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
             if (type == 'transfer') ...[
-              _DialogField(ctrl: toCtrl, label: _t('اسم المستخدم المستلم','Destinataire','Recipient Username')),
+              _DialogField(ctrl: toCtrl, label: _t('رقم هاتف المستلم','N° téléphone du destinataire','Recipient Phone Number'), keyboardType: TextInputType.phone),
               const SizedBox(height: 10),
             ],
             if (type == 'topup') ...[
@@ -1704,7 +1705,7 @@ class _WalletState extends State<WalletPage> {
                   return;
                 }
                 if (type == 'transfer' && toCtrl.text.trim().isEmpty) {
-                  setS(() => err = _t('أدخل اسم المستخدم','Entrez le destinataire','Enter recipient username'));
+                  setS(() => err = _t('أدخل رقم هاتف المستلم','Entrez le numéro du destinataire','Enter recipient phone number'));
                   return;
                 }
                 if (type == 'topup' && phoneCtrl.text.trim().isEmpty) {

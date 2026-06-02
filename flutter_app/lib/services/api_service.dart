@@ -255,10 +255,10 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>?> transfer(
-      String username, double amount, {required String pin}) async {
+      String phone, double amount, {required String pin}) async {
     try {
       final res = await _dio.post('/wallet/transfer/', data: {
-        'username': username, 'amount': amount, 'pin': pin,
+        'phone': phone, 'amount': amount, 'pin': pin,
       });
       return res.data as Map<String, dynamic>;
     } on DioException catch (e) {

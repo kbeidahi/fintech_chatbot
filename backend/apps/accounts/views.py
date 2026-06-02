@@ -16,6 +16,7 @@ User = get_user_model()
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
+    phone    = serializers.CharField(required=True, min_length=8, max_length=20)
 
     class Meta:
         model = User
@@ -26,6 +27,12 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def validate_email(self, value):
         return User.objects.normalize_email(value.strip())
+
+    def validate_phone(self, value):
+        value = value.strip()
+        if User.objects.filter(phone=value).exists():
+            raise serializers.ValidationError("A user with this phone number already exists.")
+        return value
 
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)

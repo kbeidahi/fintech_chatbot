@@ -96,21 +96,21 @@ class TransferView(APIView):
         pin_err = verify_pin_or_error(request.user, request)
         if pin_err: return pin_err
 
-        username = clean_text(request.data.get("username"))
+        phone = clean_text(request.data.get("phone"))
         amount = request.data.get("amount")
         description = clean_text(request.data.get("description"))
 
-        if not username or not amount:
+        if not phone or not amount:
             return Response(
-                {"error": "username and amount are required."},
+                {"error": "phone and amount are required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            receiver = User.objects.get(username=username)
+            receiver = User.objects.get(phone=phone)
         except User.DoesNotExist:
             return Response(
-                {"error": f'User "{username}" not found.'},
+                {"error": f'No account found with phone number "{phone}".'},
                 status=status.HTTP_404_NOT_FOUND,
             )
 

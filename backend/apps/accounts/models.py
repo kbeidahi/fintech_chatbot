@@ -5,7 +5,7 @@ from django.db import models
 
 
 class User(AbstractUser):
-    phone = models.CharField(max_length=20, blank=True)
+    phone = models.CharField(max_length=20, unique=True, blank=False)
     preferred_language = models.CharField(max_length=10, default="en")
     created_at = models.DateTimeField(auto_now_add=True)
     pin_hash = models.CharField(max_length=128, blank=True, default="")
