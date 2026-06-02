@@ -234,37 +234,117 @@ IMPORTANT RULES:
 - Match the user's language and tone.
 """
 
+# ── Gemini classification prompt ─────────────────────────────────────────────
+
+GEMINI_CLASSIFIER_PROMPT = """
+You are an intent classifier for FinAssist, a fintech app assistant.
+Read the user message and return ONLY a valid JSON object — no markdown, no explanation.
+
+JSON format:
+{
+  "type": "action" | "inquiry" | "social" | "general",
+  "intent": "<intent>",
+  "params": {},
+  "lang": "ar" | "fr" | "en"
+}
+
+TYPE definitions:
+- "action"  : user wants to EXECUTE a financial operation right now
+- "inquiry" : user wants to LEARN / understand how something works
+- "social"  : greeting, thanks, goodbye, feelings, small talk
+- "general" : any other question not covered above
+
+INTENTS:
+  action intents  : balance_check, transfer, topup, bill_payment, withdrawal, gimtel, bpay
+  inquiry intents : balance_info, transfer_info, topup_info, bill_info, withdrawal_info,
+                    gimtel_info, bpay_info, card_info, cheque_info, pin_info
+  social intents  : greeting, thanks, goodbye, how_are_you, compliment, apology,
+                    feeling_good, feeling_bad, who_are_you, what_can_you_do, help_request, other_social
+  general intent  : general_question
+
+PARAMS to extract (only for action type):
+  transfer      : {"amount": <number>, "recipient": "<username>"}
+  topup         : {"amount": <number>, "phone": "<phone_number>"}
+  bill_payment  : {"amount": <number>, "bill_type": "<type>", "reference": "<id>"}
+  withdrawal    : {"amount": <number>}
+  gimtel        : {"amount": <number>, "app": "<app_name>"}
+  bpay          : {"amount": <number>, "merchant_id": "<id>"}
+  balance_check : {}
+
+LANG: detect from the user message (ar=Arabic, fr=French, en=English)
+
+EXAMPLES:
+"transfer 500 to ahmed"           → {"type":"action","intent":"transfer","params":{"amount":500,"recipient":"ahmed"},"lang":"en"}
+"I want to send money to my friend" → {"type":"action","intent":"transfer","params":{},"lang":"en"}
+"how do I transfer money?"        → {"type":"inquiry","intent":"transfer_info","params":{},"lang":"en"}
+"what's my balance?"              → {"type":"action","intent":"balance_check","params":{},"lang":"en"}
+"how can I check my balance?"     → {"type":"inquiry","intent":"balance_info","params":{},"lang":"en"}
+"حول 500 إلى ahmed"               → {"type":"action","intent":"transfer","params":{"amount":500,"recipient":"ahmed"},"lang":"ar"}
+"كيف أحول الأموال؟"               → {"type":"inquiry","intent":"transfer_info","params":{},"lang":"ar"}
+"اشحن هاتف 22334455 بـ 100"       → {"type":"action","intent":"topup","params":{"amount":100,"phone":"22334455"},"lang":"ar"}
+"comment faire un virement?"      → {"type":"inquiry","intent":"transfer_info","params":{},"lang":"fr"}
+"virer 500 à ahmed"               → {"type":"action","intent":"transfer","params":{"amount":500,"recipient":"ahmed"},"lang":"fr"}
+"merci"                           → {"type":"social","intent":"thanks","params":{},"lang":"fr"}
+"bonjour"                         → {"type":"social","intent":"greeting","params":{},"lang":"fr"}
+"what is bitcoin?"                → {"type":"general","intent":"general_question","params":{},"lang":"en"}
+""".strip()
+
+
+# ── General chat prompt (used when type=general) ──────────────────────────────
+
 LLM_SYSTEM_PROMPTS = {
     'ar': (
-        'أنت FinAssist، مساعد مالي ذكي وودود لتطبيق مالي رقمي. '
-        'شخصيتك: دافئ، متحمس، مفيد جداً، وتستخدم إيموجي بشكل طبيعي. '
-        'تتحدث مع المستخدم كصديق ذكي يفهم ماذا يريد المستخدم حتى لو لم يعبّر بشكل دقيق. '
-        'حلّل نية المستخدم من كلامه وأجب بناءً على ما يريده فعلاً، ليس فقط الكلمات الحرفية. '
-        '\n' + _APP_KNOWLEDGE +
-        '\nأجب دائماً بالعربية الفصيحة أو العامية حسب ما يكتبه المستخدم. '
-        'كن قصيراً وطبيعياً في المحادثة العادية، ومفصلاً وخطوة بخطوة في الأسئلة التقنية.'
+        'أنت FinAssist، مساعد مالي ذكي وودود. شخصيتك دافئة وتستخدم إيموجي بشكل طبيعي. '
+        'أجب على أي سؤال عام بطريقة مفيدة وذكية. أجب بالعربية.'
     ),
     'fr': (
-        'Vous êtes FinAssist, un assistant financier intelligent et chaleureux pour une application fintech. '
-        'Personnalité: chaleureux, enthousiaste, très serviable, avec des emojis naturels. '
-        'Vous parlez à l\'utilisateur comme un ami intelligent qui comprend ce qu\'il veut même s\'il ne s\'exprime pas précisément. '
-        'Analysez l\'intention de l\'utilisateur et répondez en fonction de ce qu\'il veut vraiment. '
-        '\n' + _APP_KNOWLEDGE +
-        '\nRépondez toujours en français. Soyez bref et naturel en conversation, détaillé et étape par étape pour les questions techniques.'
+        'Vous êtes FinAssist, un assistant financier intelligent et chaleureux. '
+        'Répondez à toute question générale de façon utile et intelligente. Répondez en français.'
     ),
     'en': (
-        'You are FinAssist, a smart and friendly financial assistant for a digital fintech app. '
-        'Personality: warm, enthusiastic, very helpful, and you use emojis naturally. '
-        'You talk to the user like a smart knowledgeable friend who understands what they want even if they don\'t phrase it perfectly. '
-        'Analyze the user\'s intent from their message and respond based on what they actually want, not just the literal words. '
-        '\n' + _APP_KNOWLEDGE +
-        '\nAlways reply in English. Be brief and natural in casual conversation, detailed and step-by-step for technical questions. '
-        'If the user seems frustrated or confused, be extra supportive and ask clarifying questions.'
+        'You are FinAssist, a smart and friendly financial assistant. '
+        'Answer any general question in a helpful and clever way. Reply in English.'
     ),
 }
 
 
-# ── Gemini fallback ───────────────────────────────────────────────────────────
+# ── Gemini classify (Layer 1 — intent understanding) ─────────────────────────
+
+def gemini_classify(user_message: str) -> Optional[dict]:
+    """Send message to Gemini for intent classification. Returns dict or None."""
+    api_key = settings.GEMINI_API_KEY
+    if not api_key:
+        return None
+    model = getattr(settings, 'GEMINI_MODEL', 'gemini-2.5-flash').strip()
+    model_path = model if model.startswith('models/') else f'models/{model}'
+
+    body = json.dumps({
+        'system_instruction': {'parts': [{'text': GEMINI_CLASSIFIER_PROMPT}]},
+        'contents': [{'role': 'user', 'parts': [{'text': user_message}]}],
+        'generationConfig': {'temperature': 0.1, 'maxOutputTokens': 256},
+    }).encode('utf-8')
+
+    req = urllib.request.Request(
+        f'https://generativelanguage.googleapis.com/v1beta/{quote(model_path, safe="/")}:generateContent?key={api_key}',
+        data=body, headers={'Content-Type': 'application/json'}, method='POST',
+    )
+    with urllib.request.urlopen(req, timeout=15) as response:
+        data = json.loads(response.read().decode('utf-8'))
+
+    candidates = data.get('candidates') or []
+    if not candidates:
+        return None
+    parts = candidates[0].get('content', {}).get('parts') or []
+    raw = ''.join(part.get('text', '') for part in parts).strip()
+
+    # Strip markdown code fences if present
+    raw = re.sub(r'^```(?:json)?\s*', '', raw)
+    raw = re.sub(r'\s*```$', '', raw).strip()
+
+    return json.loads(raw)
+
+
+# ── Gemini general chat (used when type=general) ──────────────────────────────
 
 def gemini_fallback(user_message: str, lang: str) -> str:
     api_key = settings.GEMINI_API_KEY
@@ -405,6 +485,62 @@ def detect_action(norm: str, lang: str) -> Optional[str]:
     return None
 
 
+# ── Inquiry answers (returned when Gemini classifies type=inquiry) ────────────
+
+INQUIRY_ANSWERS = {
+    'balance_info': {
+        'ar': '💰 لمعرفة رصيدك:\n\n1️⃣ افتح التطبيق\n2️⃣ اضغط على تبويب "المحفظة" في أسفل الشاشة\n3️⃣ سيظهر رصيدك فوراً\n\n✅ الرصيد يتحدث تلقائياً مع كل معاملة.',
+        'fr': '💰 Pour consulter votre solde:\n\n1️⃣ Ouvrez l\'application\n2️⃣ Appuyez sur l\'onglet "Portefeuille"\n3️⃣ Votre solde s\'affiche immédiatement\n\n✅ Le solde se met à jour en temps réel.',
+        'en': '💰 To check your balance:\n\n1️⃣ Open the app\n2️⃣ Tap the "Wallet" tab at the bottom\n3️⃣ Your balance appears instantly\n\n✅ Balance updates in real-time with every transaction.',
+    },
+    'transfer_info': {
+        'ar': '💸 لتحويل الأموال:\n\n1️⃣ اضغط على "تحويل" في المحفظة\n2️⃣ أدخل اسم المستخدم المستلم\n3️⃣ أدخل المبلغ\n4️⃣ أدخل رقمك السري للتأكيد\n\n✅ التحويل فوري!\n⚠️ تحقق من اسم المستلم قبل التأكيد.',
+        'fr': '💸 Pour faire un virement:\n\n1️⃣ Appuyez sur "Virement" dans le Portefeuille\n2️⃣ Entrez le nom d\'utilisateur du destinataire\n3️⃣ Entrez le montant\n4️⃣ Confirmez avec votre code PIN\n\n✅ Virement instantané!\n⚠️ Vérifiez bien le destinataire avant de confirmer.',
+        'en': '💸 To transfer money:\n\n1️⃣ Tap "Transfer" in the Wallet\n2️⃣ Enter the recipient\'s username\n3️⃣ Enter the amount\n4️⃣ Confirm with your PIN\n\n✅ Transfer is instant!\n⚠️ Double-check the recipient before confirming.',
+    },
+    'topup_info': {
+        'ar': '📱 لشحن الهاتف:\n\n1️⃣ اضغط على "شحن" في المحفظة\n2️⃣ اختر الشبكة (موريتل / شنقيتل / ماتل)\n3️⃣ أدخل رقم الهاتف\n4️⃣ أدخل المبلغ\n5️⃣ أكّد بالرقم السري\n\n✅ الشحن فوري!',
+        'fr': '📱 Pour recharger un téléphone:\n\n1️⃣ Appuyez sur "Recharge" dans le Portefeuille\n2️⃣ Choisissez le réseau (Mauritel / Chinguitel / Mattel)\n3️⃣ Entrez le numéro\n4️⃣ Entrez le montant\n5️⃣ Confirmez avec le PIN\n\n✅ Recharge instantanée!',
+        'en': '📱 To top up a phone:\n\n1️⃣ Tap "Top-up" in the Wallet\n2️⃣ Choose the network (Mauritel / Chinguitel / Mattel)\n3️⃣ Enter the phone number\n4️⃣ Enter the amount\n5️⃣ Confirm with your PIN\n\n✅ Top-up is instant!',
+    },
+    'bill_info': {
+        'ar': '🧾 لدفع الفواتير:\n\n1️⃣ اضغط على "فاتورة" في المحفظة\n2️⃣ اختر نوع الفاتورة (كهرباء، ماء، إنترنت...)\n3️⃣ أدخل معرّفك (ID)\n4️⃣ ستظهر تفاصيل الفاتورة\n5️⃣ أكّد بالرقم السري\n\n✅ الدفع فوري!',
+        'fr': '🧾 Pour payer une facture:\n\n1️⃣ Appuyez sur "Facture" dans le Portefeuille\n2️⃣ Choisissez le type (Électricité, Eau, Internet...)\n3️⃣ Entrez votre identifiant client\n4️⃣ Les détails s\'affichent\n5️⃣ Confirmez avec le PIN\n\n✅ Paiement instantané!',
+        'en': '🧾 To pay a bill:\n\n1️⃣ Tap "Bill" in the Wallet\n2️⃣ Choose the type (Electricity, Water, Internet...)\n3️⃣ Enter your customer ID\n4️⃣ Bill details will appear\n5️⃣ Confirm with your PIN\n\n✅ Payment is instant!',
+    },
+    'withdrawal_info': {
+        'ar': '💵 لسحب الأموال نقداً:\n\n1️⃣ اضغط "Cash out" في التطبيق\n2️⃣ أدخل رقم الوكالة\n3️⃣ أدخل المبلغ\n4️⃣ أكّد بالرقم السري\n5️⃣ ستصلك رسالة SMS بكود السحب\n6️⃣ أعطِ الكود لصاحب الوكالة\n\n⚠️ لا تشارك الكود مع أي شخص غير الوكيل.',
+        'fr': '💵 Pour retirer de l\'argent:\n\n1️⃣ Appuyez "Cash out" dans l\'app\n2️⃣ Entrez le numéro de l\'agence\n3️⃣ Entrez le montant\n4️⃣ Confirmez avec le PIN\n5️⃣ Vous recevrez un code par SMS\n6️⃣ Donnez le code à l\'agent\n\n⚠️ Ne partagez le code qu\'avec l\'agent.',
+        'en': '💵 To withdraw cash:\n\n1️⃣ Tap "Cash out" in the app\n2️⃣ Enter the agency number\n3️⃣ Enter the amount\n4️⃣ Confirm with your PIN\n5️⃣ You\'ll receive a withdrawal code by SMS\n6️⃣ Give the code to the agent\n\n⚠️ Only share the code with the agency.',
+    },
+    'gimtel_info': {
+        'ar': '🔄 لإرسال المال عبر GIMTEL:\n\n1️⃣ اضغط على أيقونة "GIMTEL" في المحفظة\n2️⃣ اختر التطبيق المستلم (بنكيلي، كليك، سيداد...)\n3️⃣ أدخل رقم هاتف المستلم\n4️⃣ أدخل المبلغ\n5️⃣ أكّد بالرقم السري\n\n✅ التحويل فوري!',
+        'fr': '🔄 Pour envoyer via GIMTEL:\n\n1️⃣ Appuyez sur l\'icône "GIMTEL"\n2️⃣ Choisissez l\'app destinataire (Bankily, Click, Sedad...)\n3️⃣ Entrez le numéro du destinataire\n4️⃣ Entrez le montant\n5️⃣ Confirmez avec le PIN\n\n✅ Transfert instantané!',
+        'en': '🔄 To send money via GIMTEL:\n\n1️⃣ Tap the "GIMTEL" icon in the Wallet\n2️⃣ Choose the target app (Bankily, Click, Sedad...)\n3️⃣ Enter recipient\'s phone number\n4️⃣ Enter the amount\n5️⃣ Confirm with your PIN\n\n✅ Transfer is instant!',
+    },
+    'bpay_info': {
+        'ar': '🏪 للدفع عند التجار (B-Pay):\n\n1️⃣ اضغط على "B-Pay" في المحفظة\n2️⃣ أدخل معرّف التاجر\n3️⃣ أدخل المبلغ\n4️⃣ أكّد بالرقم السري\n\n✅ الدفع يصل للتاجر فوراً!',
+        'fr': '🏪 Pour payer un marchand (B-Pay):\n\n1️⃣ Appuyez sur "B-Pay" dans le Portefeuille\n2️⃣ Entrez l\'identifiant du marchand\n3️⃣ Entrez le montant\n4️⃣ Confirmez avec le PIN\n\n✅ Paiement envoyé instantanément!',
+        'en': '🏪 To pay a merchant (B-Pay):\n\n1️⃣ Tap "B-Pay" in the Wallet\n2️⃣ Enter the merchant ID\n3️⃣ Enter the amount\n4️⃣ Confirm with your PIN\n\n✅ Payment sent instantly!',
+    },
+    'card_info': {
+        'ar': '💳 خدمات بطاقة الخصم:\n\n• طلب بطاقة جديدة\n• عرض تفاصيل البطاقة\n• تجميد / إلغاء تجميد البطاقة\n• تحديد حدود الإنفاق\n\nمن الصفحة الرئيسية → "بطاقة الخصم"\n\n✅ البطاقة الافتراضية متاحة فوراً.',
+        'fr': '💳 Services carte de débit:\n\n• Demander une nouvelle carte\n• Voir les détails\n• Geler / dégeler la carte\n• Définir les limites\n\nAccueil → "Carte débit"\n\n✅ Carte virtuelle disponible immédiatement.',
+        'en': '💳 Debit card services:\n\n• Request a new card\n• View card details\n• Freeze / unfreeze the card\n• Set spending limits\n\nHome → "Debit Card"\n\n✅ Virtual card available immediately.',
+    },
+    'cheque_info': {
+        'ar': '📒 لطلب دفتر شيكات:\n\n1️⃣ الصفحة الرئيسية → "الحسابات"\n2️⃣ "طلب دفتر شيكات"\n3️⃣ اختر حسابك وأكّد\n\n✅ جاهز خلال 3-5 أيام عمل.',
+        'fr': '📒 Pour demander un chéquier:\n\n1️⃣ Accueil → "Comptes"\n2️⃣ "Demande de chéquier"\n3️⃣ Choisissez votre compte et confirmez\n\n✅ Prêt dans 3 à 5 jours ouvrables.',
+        'en': '📒 To request a cheque book:\n\n1️⃣ Home → "Accounts"\n2️⃣ "Request Cheque Book"\n3️⃣ Choose your account and confirm\n\n✅ Ready within 3–5 business days.',
+    },
+    'pin_info': {
+        'ar': '🔑 عن الرقم السري:\n\n• مطلوب لجميع العمليات المالية\n• لا تشاركه مع أحد أبداً\n\nلتغييره:\nالإعدادات ← الأمان ← "تغيير الرقم السري"\n\nنسيت رقمك؟\nشاشة الدخول ← "نسيت كلمة المرور" ← أدخل بريدك الإلكتروني\n\n⚠️ لن نطلب منك رقمك السري أبداً.',
+        'fr': '🔑 À propos du code PIN:\n\n• Requis pour toutes les opérations\n• Ne le partagez jamais\n\nPour le changer:\nParamètres → Sécurité → "Changer le PIN"\n\nPIN oublié?\nÉcran connexion → "Mot de passe oublié" → email\n\n⚠️ Nous ne vous demanderons JAMAIS votre PIN.',
+        'en': '🔑 About your PIN:\n\n• Required for all financial operations\n• Never share it with anyone\n\nTo change it:\nSettings → Security → "Change PIN"\n\nForgot your PIN?\nLogin screen → "Forgot password" → enter your email\n\n⚠️ We will NEVER ask for your PIN.',
+    },
+}
+
+
 # ── Main engine ───────────────────────────────────────────────────────────────
 
 class MultilingualIntentEngine:
@@ -426,6 +562,104 @@ class MultilingualIntentEngine:
         'en': '❌ Incorrect PIN. Please try again.',
     }
 
+    def _execute_classified(self, intent: str, params: dict, user, pin: str, lang: str, norm: str) -> dict:
+        """Execute an action based on Gemini-classified intent + extracted params."""
+
+        if intent == 'balance_check':
+            wallet = Wallet.get_or_create_for_user(user)
+            return {'answer': action_response('balance_result', lang, balance=wallet.balance, currency=wallet.currency),
+                    'intent': 'check_balance', 'action': 'balance', 'lang': lang, 'source': 'action'}
+
+        # All other actions need PIN
+        err = self._check_pin(user, pin, lang)
+        if err:
+            return err
+
+        amount = params.get('amount')
+        if amount:
+            try:
+                amount = Decimal(str(amount))
+            except (InvalidOperation, TypeError):
+                amount = None
+        # If amount missing, try to extract from original text
+        if not amount:
+            amount = extract_amount(norm)
+
+        if intent == 'transfer':
+            recipient = params.get('recipient') or extract_username(norm)
+            if not recipient or not amount:
+                return {'answer': action_response('transfer_need_info', lang),
+                        'intent': 'transfer_info', 'lang': lang, 'source': 'action_guide'}
+            try:
+                User = get_user_model()
+                receiver = User.objects.get(username=recipient)
+            except Exception:
+                return {'answer': action_response('user_not_found', lang, username=recipient),
+                        'intent': 'transfer_failed', 'lang': lang, 'source': 'action'}
+            success, msg, txn = transfer_funds(user, receiver, amount)
+            wallet = Wallet.get_or_create_for_user(user)
+            if success:
+                return {'answer': action_response('transfer_success', lang, amount=amount, username=recipient, balance=wallet.balance),
+                        'intent': 'transfer', 'action': 'transfer', 'lang': lang, 'source': 'action'}
+            return {'answer': action_response('insufficient_balance', lang, balance=wallet.balance),
+                    'intent': 'transfer_failed', 'lang': lang, 'source': 'action'}
+
+        if intent == 'topup':
+            phone = params.get('phone') or extract_phone(norm)
+            if not phone or not amount:
+                return {'answer': action_response('topup_need_info', lang),
+                        'intent': 'topup_info', 'lang': lang, 'source': 'action_guide'}
+            success, msg, _ = process_payment(user, amount, Transaction.TYPE_PHONE_TOPUP, description=f'Phone top-up: {phone}', reference=phone)
+            wallet = Wallet.get_or_create_for_user(user)
+            if success:
+                return {'answer': action_response('topup_success', lang, phone=phone, amount=amount, balance=wallet.balance),
+                        'intent': 'phone_topup', 'action': 'topup', 'lang': lang, 'source': 'action'}
+            return {'answer': action_response('insufficient_balance', lang, balance=wallet.balance),
+                    'intent': 'topup_failed', 'lang': lang, 'source': 'action'}
+
+        if intent == 'bill_payment':
+            bill_type = params.get('bill_type', 'general')
+            reference = params.get('reference', '')
+            if not amount:
+                return {'answer': action_response('bill_need_info', lang),
+                        'intent': 'bill_info', 'lang': lang, 'source': 'action_guide'}
+            success, msg, _ = process_payment(user, amount, Transaction.TYPE_BILL_PAYMENT, description=f'Bill: {bill_type}', reference=reference)
+            wallet = Wallet.get_or_create_for_user(user)
+            if success:
+                return {'answer': action_response('bill_success', lang, bill_type=bill_type, amount=amount, balance=wallet.balance),
+                        'intent': 'bill_payment', 'action': 'bill', 'lang': lang, 'source': 'action'}
+            return {'answer': action_response('insufficient_balance', lang, balance=wallet.balance),
+                    'intent': 'bill_failed', 'lang': lang, 'source': 'action'}
+
+        if intent == 'withdrawal':
+            if not amount:
+                return {'answer': action_response('withdrawal_need_info', lang),
+                        'intent': 'withdrawal_info', 'lang': lang, 'source': 'action_guide'}
+            success, msg, _ = process_payment(user, amount, Transaction.TYPE_WITHDRAWAL, description='Cash withdrawal')
+            wallet = Wallet.get_or_create_for_user(user)
+            if success:
+                return {'answer': action_response('withdrawal_success', lang, amount=amount, balance=wallet.balance),
+                        'intent': 'withdrawal', 'action': 'withdrawal', 'lang': lang, 'source': 'action'}
+            return {'answer': action_response('insufficient_balance', lang, balance=wallet.balance),
+                    'intent': 'withdrawal_failed', 'lang': lang, 'source': 'action'}
+
+        if intent == 'gimtel':
+            app_name = params.get('app') or extract_app_name(norm)
+            if not app_name or not amount:
+                return {'answer': action_response('gimtel_need_info', lang),
+                        'intent': 'gimtel_info', 'lang': lang, 'source': 'action_guide'}
+            success, msg, _ = process_payment(user, amount, Transaction.TYPE_GIMTEL, description=f'GIMTEL to {app_name}')
+            wallet = Wallet.get_or_create_for_user(user)
+            if success:
+                return {'answer': action_response('gimtel_success', lang, app=app_name, amount=amount, balance=wallet.balance),
+                        'intent': 'gimtel', 'action': 'gimtel', 'lang': lang, 'source': 'action'}
+            return {'answer': action_response('insufficient_balance', lang, balance=wallet.balance),
+                    'intent': 'gimtel_failed', 'lang': lang, 'source': 'action'}
+
+        # Unknown action — guide to wallet tab
+        return {'answer': INQUIRY_ANSWERS.get(f'{intent}_info', {}).get(lang, UNKNOWN_RESPONSE.get(lang, '')),
+                'intent': intent, 'lang': lang, 'source': 'faq'}
+
     def _check_pin(self, user, pin: str, lang: str) -> dict | None:
         """Returns an error dict if PIN check fails, else None (meaning OK)."""
         if not user.has_pin:
@@ -444,7 +678,49 @@ class MultilingualIntentEngine:
         norm = normalize(message)
 
         # ════════════════════════════════════════════════════════════════════
-        # LAYER 1 — ACTION (requires user + explicit command with amount)
+        # LAYER 0 — SOCIAL / COURTESY (instant, no API call)
+        # ════════════════════════════════════════════════════════════════════
+        social = _match_social(norm, lang)
+        if social:
+            return {'answer': social, 'intent': 'social', 'lang': lang, 'source': 'faq'}
+
+        # ════════════════════════════════════════════════════════════════════
+        # LAYER 1 — GEMINI CLASSIFIER (understands intent from any phrasing)
+        # ════════════════════════════════════════════════════════════════════
+        if settings.GEMINI_API_KEY:
+            try:
+                classified = gemini_classify(message)
+                if classified:
+                    lang = classified.get('lang', lang)
+                    intent_type = classified.get('type', '')
+                    intent = classified.get('intent', '')
+                    params = classified.get('params') or {}
+
+                    # ── inquiry → return the predefined FAQ answer ──────────
+                    if intent_type == 'inquiry':
+                        answer = INQUIRY_ANSWERS.get(intent, {}).get(lang) \
+                              or INQUIRY_ANSWERS.get(intent, {}).get('en', '')
+                        if answer:
+                            return {'answer': answer, 'intent': intent,
+                                    'lang': lang, 'source': 'faq'}
+
+                    # ── action → execute via existing action engine ─────────
+                    elif intent_type == 'action' and user:
+                        return self._execute_classified(intent, params, user, pin, lang, norm)
+
+                    # ── general → full Gemini conversational answer ─────────
+                    elif intent_type in ('general', 'social'):
+                        answer = gemini_fallback(message, lang)
+                        if answer:
+                            return {'answer': answer, 'intent': intent,
+                                    'lang': lang, 'source': 'gemini'}
+
+            except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError,
+                    KeyError, IndexError, json.JSONDecodeError, ValueError) as exc:
+                logger.warning('Gemini classify failed, falling back: %s', exc)
+
+        # ════════════════════════════════════════════════════════════════════
+        # LAYER 2 — FALLBACK: old keyword-based action detection
         # ════════════════════════════════════════════════════════════════════
         if user:
             action = detect_action(norm, lang)
@@ -602,33 +878,7 @@ class MultilingualIntentEngine:
                         }
 
         # ════════════════════════════════════════════════════════════════════
-        # LAYER 1.5 — SOCIAL / COURTESY (thank you, bye, compliments…)
-        # ════════════════════════════════════════════════════════════════════
-        social = _match_social(norm, lang)
-        if social:
-            return {'answer': social, 'intent': 'social', 'lang': lang, 'source': 'faq'}
-
-        # ════════════════════════════════════════════════════════════════════
-        # LAYER 2 — GEMINI (primary AI — understands intent from any phrasing)
-        # ════════════════════════════════════════════════════════════════════
-        if settings.GEMINI_API_KEY:
-            try:
-                answer = gemini_fallback(message, lang)
-                if answer:
-                    return {
-                        'answer': answer,
-                        'intent': 'gemini', 'confidence': 0.9,
-                        'lang': lang, 'source': 'gemini',
-                    }
-                logger.error('Gemini returned empty response')
-            except urllib.error.HTTPError as exc:
-                detail = exc.read().decode('utf-8', errors='replace')
-                logger.error('Gemini HTTP %s: %s', exc.code, detail)
-            except (urllib.error.URLError, TimeoutError, KeyError, IndexError, json.JSONDecodeError) as exc:
-                logger.exception('Gemini failed: %s', exc)
-
-        # ════════════════════════════════════════════════════════════════════
-        # LAYER 3 — FAQ keyword matching (fast offline fallback)
+        # LAYER 3 — FAQ keyword matching (offline fallback)
         # ════════════════════════════════════════════════════════════════════
         best_item, best_score = _match_faq(norm, lang)
 
