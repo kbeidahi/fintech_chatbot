@@ -214,20 +214,32 @@ UNKNOWN_RESPONSE = {
 
 LLM_SYSTEM_PROMPTS = {
     'ar': (
-        'أنت FinAssist، مساعد استفسارات ذكي لتطبيق مالي. '
-        'أجب على الأسئلة العامة حول استخدام التطبيق وخدماته: الرصيد، التحويل، شحن الهاتف، '
-        'الفواتير، السحب، GIMTEL، B-Pay، البطاقة، الرقم السري. '
-        'أجب دائماً بالعربية. كن مفصلاً وودوداً.'
+        'أنت FinAssist، مساعد مالي ذكي وودود لتطبيق مالي رقمي. '
+        'شخصيتك: دافئ، متحمس، مفيد، وتستخدم إيموجي بشكل طبيعي. '
+        'تتحدث مع المستخدم كصديق يعرف المال جيداً. '
+        'يمكنك الإجابة على أي سؤال يطرحه المستخدم: أسئلة عن التطبيق، أسئلة عامة، محادثة عادية، '
+        'نصائح مالية، والخدمات: الرصيد، التحويل، شحن الهاتف، الفواتير، السحب، GIMTEL، B-Pay، البطاقة، الرقم السري. '
+        'إذا سألك المستخدم عن نفسك أو عن حياتك، أجب بطريقة مرحة وذكية. '
+        'أجب دائماً بالعربية. كن قصيراً وطبيعياً في المحادثة العادية، ومفصلاً في الأسئلة التقنية.'
     ),
     'fr': (
-        'Vous êtes FinAssist, un assistant d\'information pour une application fintech. '
-        'Répondez aux questions sur les services: solde, virement, recharge, factures, '
-        'retrait, GIMTEL, B-Pay, carte, PIN. Répondez en français. Soyez détaillé et amical.'
+        'Vous êtes FinAssist, un assistant financier intelligent et chaleureux pour une application fintech. '
+        'Personnalité: chaleureux, enthousiaste, serviable, avec des emojis naturels. '
+        'Vous parlez à l\'utilisateur comme un ami qui connaît bien la finance. '
+        'Vous pouvez répondre à n\'importe quelle question: questions sur l\'app, conversation générale, '
+        'conseils financiers, et les services: solde, virement, recharge, factures, retrait, GIMTEL, B-Pay, carte, PIN. '
+        'Si l\'utilisateur vous pose des questions sur vous-même, répondez de façon amusante et intelligente. '
+        'Répondez en français. Soyez bref et naturel en conversation, détaillé pour les questions techniques.'
     ),
     'en': (
-        'You are FinAssist, a smart inquiry assistant for a fintech app. '
-        'Answer questions about app services: balance, transfer, top-up, bills, '
-        'withdrawal, GIMTEL, B-Pay, card, PIN. Be detailed, friendly and clear.'
+        'You are FinAssist, a smart and friendly financial assistant for a digital fintech app. '
+        'Personality: warm, enthusiastic, helpful, and you use emojis naturally. '
+        'You talk to the user like a knowledgeable friend who understands finance. '
+        'You can answer anything: questions about the app, general conversation, small talk, '
+        'financial tips, and services: balance, transfer, top-up, bills, withdrawal, GIMTEL, B-Pay, card, PIN. '
+        'If the user asks about you or your life, respond in a fun and clever way. '
+        'Be brief and natural in casual conversation, detailed for technical questions. '
+        'Always match the user\'s energy and tone.'
     ),
 }
 
@@ -622,38 +634,38 @@ _SOCIAL_PATTERNS = [
     # Thank you
     {
         'kw': {
-            'ar': ['شكرا', 'شكراً', 'شكرا جزيلا', 'ممنون', 'مشكور', 'بارك الله', 'جزاك الله'],
-            'fr': ['merci', 'merci beaucoup', 'je vous remercie', 'grand merci'],
-            'en': ['thank you', 'thanks', 'thank u', 'thx', 'ty', 'many thanks', 'thanks a lot'],
+            'ar': ['شكرا', 'شكراً', 'شكرا جزيلا', 'ممنون', 'مشكور', 'بارك الله', 'جزاك الله', 'يسلمو', 'مرسي'],
+            'fr': ['merci', 'merci beaucoup', 'je vous remercie', 'grand merci', 'merci bien'],
+            'en': ['thank you', 'thanks', 'thank u', 'thx', 'ty', 'many thanks', 'thanks a lot', 'thank you so much'],
         },
         'reply': {
-            'ar': '😊 على الرحب والسعة! يسعدني مساعدتك في أي وقت. هل هناك شيء آخر؟',
+            'ar': '😊 على الرحب والسعة! يسعدني مساعدتك دائماً. هل هناك شيء آخر يمكنني مساعدتك فيه؟',
             'fr': '😊 Avec plaisir ! Je suis toujours là pour vous aider. Autre chose ?',
-            'en': '😊 You\'re welcome! Happy to help anytime. Is there anything else I can do for you?',
+            'en': '😊 You\'re very welcome! Happy to help anytime. Is there anything else I can do for you?',
         },
     },
     # Goodbye
     {
         'kw': {
-            'ar': ['مع السلامة', 'وداعا', 'الى اللقاء', 'باي', 'وداع', 'سلام'],
-            'fr': ['au revoir', 'bonne journée', 'bonne nuit', 'à bientôt', 'bye', 'ciao', 'salut'],
-            'en': ['bye', 'goodbye', 'good bye', 'see you', 'see ya', 'take care', 'good night', 'good day'],
+            'ar': ['مع السلامة', 'وداعا', 'الى اللقاء', 'باي', 'وداع', 'تصبح على خير', 'يسعد مساك'],
+            'fr': ['au revoir', 'bonne journée', 'bonne nuit', 'à bientôt', 'bye', 'ciao', 'à plus'],
+            'en': ['bye', 'goodbye', 'good bye', 'see you', 'see ya', 'take care', 'good night', 'good day', 'farewell'],
         },
         'reply': {
-            'ar': '👋 مع السلامة! أتمنى لك يوماً رائعاً. لا تتردد في العودة إذا احتجت مساعدة!',
+            'ar': '👋 مع السلامة! أتمنى لك يوماً رائعاً ومليئاً بالخير. لا تتردد في العودة إذا احتجت مساعدة!',
             'fr': '👋 Au revoir ! Bonne journée, et n\'hésitez pas à revenir si vous avez besoin d\'aide !',
-            'en': '👋 Goodbye! Have a wonderful day. Don\'t hesitate to come back if you need anything!',
+            'en': '👋 Goodbye! Have a wonderful day. Don\'t hesitate to come back whenever you need anything!',
         },
     },
     # Great / perfect / awesome
     {
         'kw': {
-            'ar': ['رائع', 'ممتاز', 'عظيم', 'جميل', 'تمام', 'حلو', 'مذهل', 'ولا أروع'],
-            'fr': ['parfait', 'excellent', 'super', 'génial', 'fantastique', 'bravo', 'très bien', 'nickel'],
-            'en': ['great', 'perfect', 'excellent', 'awesome', 'amazing', 'wonderful', 'fantastic', 'nice', 'cool', 'brilliant'],
+            'ar': ['رائع', 'ممتاز', 'عظيم', 'جميل', 'تمام', 'حلو', 'مذهل', 'ولا أروع', 'روعة', 'زين', 'بديع'],
+            'fr': ['parfait', 'excellent', 'super', 'génial', 'fantastique', 'bravo', 'très bien', 'nickel', 'top'],
+            'en': ['great', 'perfect', 'excellent', 'awesome', 'amazing', 'wonderful', 'fantastic', 'nice', 'cool', 'brilliant', 'superb'],
         },
         'reply': {
-            'ar': '🌟 سعيد بأنك راضٍ! هل يمكنني مساعدتك في شيء آخر؟',
+            'ar': '🌟 يسعدني أنك راضٍ! هل يمكنني مساعدتك في شيء آخر؟',
             'fr': '🌟 Ravi que cela vous convienne ! Puis-je vous aider avec autre chose ?',
             'en': '🌟 Glad to hear that! Can I help you with anything else?',
         },
@@ -661,9 +673,9 @@ _SOCIAL_PATTERNS = [
     # OK / alright / understood
     {
         'kw': {
-            'ar': ['حسنا', 'حسناً', 'اوكي', 'موافق', 'فهمت', 'مفهوم', 'واضح', 'اوك'],
-            'fr': ['ok', 'okay', 'd\'accord', 'compris', 'entendu', 'bien noté'],
-            'en': ['ok', 'okay', 'alright', 'got it', 'understood', 'i see', 'noted', 'sure'],
+            'ar': ['حسنا', 'حسناً', 'اوكي', 'موافق', 'فهمت', 'مفهوم', 'واضح', 'اوك', 'تمام تمام', 'ماشي'],
+            'fr': ['ok', 'okay', 'd\'accord', 'compris', 'entendu', 'bien noté', 'ça marche', 'c\'est bon'],
+            'en': ['ok', 'okay', 'alright', 'got it', 'understood', 'i see', 'noted', 'sure', 'makes sense'],
         },
         'reply': {
             'ar': '👍 ممتاز! هل تحتاج إلى مساعدة في أي شيء آخر؟',
@@ -674,40 +686,118 @@ _SOCIAL_PATTERNS = [
     # Sorry / apology
     {
         'kw': {
-            'ar': ['آسف', 'اسف', 'معذرة', 'عفوا', 'أعتذر', 'اعتذر'],
-            'fr': ['désolé', 'pardon', 'excusez-moi', 'je m\'excuse', 'toutes mes excuses'],
-            'en': ['sorry', 'i\'m sorry', 'my apologies', 'apologies', 'excuse me', 'pardon'],
+            'ar': ['آسف', 'اسف', 'معذرة', 'عفوا', 'أعتذر', 'اعتذر', 'اسمحلي', 'سامحني'],
+            'fr': ['désolé', 'pardon', 'excusez-moi', 'je m\'excuse', 'toutes mes excuses', 'navré'],
+            'en': ['sorry', 'i\'m sorry', 'my apologies', 'apologies', 'excuse me', 'pardon', 'my bad', 'forgive me'],
         },
         'reply': {
-            'ar': '😊 لا داعي للاعتذار! أنا هنا للمساعدة. كيف يمكنني خدمتك؟',
+            'ar': '😊 لا داعي للاعتذار على الإطلاق! أنا هنا دائماً للمساعدة. كيف يمكنني خدمتك؟',
             'fr': '😊 Pas de souci du tout ! Je suis là pour vous aider. Comment puis-je vous être utile ?',
-            'en': '😊 No worries at all! I\'m here to help. What can I do for you?',
+            'en': '😊 No worries at all! That\'s what I\'m here for. What can I do for you?',
         },
     },
     # Compliment the bot
     {
         'kw': {
-            'ar': ['أنت رائع', 'أنت ذكي', 'مساعد ممتاز', 'خدمة رائعة', 'تطبيق ممتاز'],
-            'fr': ['tu es super', 'vous êtes super', 'excellent service', 'très utile', 'bien fait'],
-            'en': ['you are great', 'you\'re great', 'you\'re amazing', 'good bot', 'great service', 'very helpful', 'well done'],
+            'ar': ['أنت رائع', 'أنت ذكي', 'مساعد ممتاز', 'خدمة رائعة', 'تطبيق ممتاز', 'أنت مميز', 'احبك'],
+            'fr': ['tu es super', 'vous êtes super', 'excellent service', 'très utile', 'bien fait', 'je t\'aime', 'je vous aime'],
+            'en': ['you are great', 'you\'re great', 'you\'re amazing', 'good bot', 'great service', 'very helpful', 'well done', 'i love you', 'love you'],
         },
         'reply': {
-            'ar': '🤩 شكراً جزيلاً! يسعدني دائماً خدمتك. لا تتردد في السؤال عن أي شيء!',
-            'fr': '🤩 Merci beaucoup ! C\'est un plaisir de vous aider. N\'hésitez pas à poser vos questions !',
-            'en': '🤩 Thank you so much! It\'s a pleasure to assist you. Feel free to ask me anything!',
+            'ar': '🤩 شكراً جزيلاً، هذا يجعلني سعيداً! يسعدني دائماً خدمتك. لا تتردد في السؤال عن أي شيء!',
+            'fr': '🤩 Merci beaucoup, ça me touche vraiment ! C\'est un plaisir de vous aider. N\'hésitez pas !',
+            'en': '🤩 Aww, thank you so much! That really means a lot. Feel free to ask me anything anytime!',
+        },
+    },
+    # How are you
+    {
+        'kw': {
+            'ar': ['كيف حالك', 'كيفك', 'عامل ايه', 'كيف الحال', 'ايش أخبارك', 'شو أخبارك', 'كيف أنت'],
+            'fr': ['comment vas-tu', 'comment allez-vous', 'ça va', 'comment tu vas', 'tu vas bien'],
+            'en': ['how are you', 'how r u', 'how are u', 'how\'s it going', 'how do you do', 'you doing well', 'how you doing'],
+        },
+        'reply': {
+            'ar': '😄 أنا بخير جداً، شكراً لسؤالك! جاهز دائماً لمساعدتك. كيف يمكنني خدمتك اليوم؟',
+            'fr': '😄 Je vais très bien, merci de demander ! Toujours prêt à vous aider. Comment puis-je vous servir aujourd\'hui ?',
+            'en': '😄 I\'m doing great, thanks for asking! Always ready to help you out. How can I assist you today?',
+        },
+    },
+    # What is your name / who are you
+    {
+        'kw': {
+            'ar': ['ما اسمك', 'من أنت', 'مين انت', 'اسمك ايه', 'عرفني عليك', 'تعريف'],
+            'fr': ['comment tu t\'appelles', 'qui es-tu', 'quel est ton nom', 'qui êtes-vous', 'ton nom'],
+            'en': ['what is your name', 'what\'s your name', 'who are you', 'tell me about yourself', 'your name', 'introduce yourself'],
+        },
+        'reply': {
+            'ar': '🤖 أنا FinAssist، مساعدك المالي الذكي! 💚\n\nأنا هنا لمساعدتك في كل ما يخص تطبيقك المالي:\n💰 الرصيد • 💸 التحويلات • 📱 شحن الهاتف\n🧾 الفواتير • 💵 السحب النقدي • 🔑 الرقم السري\n\nما الذي يمكنني مساعدتك فيه؟ 😊',
+            'fr': '🤖 Je suis FinAssist, votre assistant financier intelligent ! 💚\n\nJe suis là pour vous aider avec tout ce qui concerne votre application:\n💰 Solde • 💸 Virements • 📱 Recharge\n🧾 Factures • 💵 Retrait • 🔑 Code PIN\n\nComment puis-je vous aider ? 😊',
+            'en': '🤖 I\'m FinAssist, your smart financial assistant! 💚\n\nI\'m here to help you with everything in your app:\n💰 Balance • 💸 Transfers • 📱 Top-up\n🧾 Bills • 💵 Cash withdrawal • 🔑 PIN\n\nWhat can I do for you? 😊',
+        },
+    },
+    # What can you do
+    {
+        'kw': {
+            'ar': ['ماذا تستطيع', 'ايش تقدر تسوي', 'ايش تعرف', 'ما قدراتك', 'ايش خدماتك'],
+            'fr': ['que peux-tu faire', 'qu\'est-ce que tu sais faire', 'tes capacités', 'tes fonctionnalités', 'quels services'],
+            'en': ['what can you do', 'what do you do', 'what are your capabilities', 'what services', 'your features'],
+        },
+        'reply': {
+            'ar': '✨ إليك ما يمكنني فعله:\n\n💰 عرض رصيدك الفعلي\n💸 تحويل الأموال\n📱 شحن الهاتف (موريتل / شنقيتل / ماتل)\n🧾 دفع الفواتير (كهرباء، ماء، إنترنت...)\n💵 سحب الأموال نقداً\n🏪 الدفع عند التجار (B-Pay)\n🔄 تحويل عبر GIMTEL\n🔑 مساعدتك بشأن الرقم السري\n\nما الذي تريد فعله؟ 😊',
+            'fr': '✨ Voici ce que je peux faire:\n\n💰 Afficher votre solde réel\n💸 Effectuer des virements\n📱 Recharger votre téléphone\n🧾 Payer vos factures\n💵 Retrait d\'espèces\n🏪 Paiement marchand (B-Pay)\n🔄 Transferts GIMTEL\n🔑 Aide avec votre code PIN\n\nQue souhaitez-vous faire ? 😊',
+            'en': '✨ Here\'s what I can do for you:\n\n💰 Show your real-time balance\n💸 Transfer money\n📱 Phone top-up\n🧾 Pay bills\n💵 Cash withdrawal\n🏪 Merchant payment (B-Pay)\n🔄 GIMTEL transfers\n🔑 PIN assistance\n\nWhat would you like to do? 😊',
+        },
+    },
+    # Good morning / afternoon / evening
+    {
+        'kw': {
+            'ar': ['صباح الخير', 'صباح النور', 'مساء الخير', 'مساء النور', 'صبح', 'مساء'],
+            'fr': ['bonjour', 'bonsoir', 'bon matin', 'bonne soirée', 'salut'],
+            'en': ['good morning', 'good afternoon', 'good evening', 'morning', 'evening', 'hi there', 'hey there', 'hello there'],
+        },
+        'reply': {
+            'ar': '☀️ صباح الخير والسعادة! كيف يمكنني مساعدتك اليوم؟',
+            'fr': '☀️ Bonjour ! Ravi de vous voir. Comment puis-je vous aider aujourd\'hui ?',
+            'en': '☀️ Hello there! Great to see you. How can I help you today?',
+        },
+    },
+    # I'm happy / feeling good
+    {
+        'kw': {
+            'ar': ['أنا سعيد', 'أنا مبسوط', 'أنا بخير', 'زين', 'الحمدلله', 'بخير'],
+            'fr': ['je suis heureux', 'je suis content', 'je vais bien', 'tout va bien', 'je suis ravi'],
+            'en': ['i am happy', 'i\'m happy', 'feeling good', 'i\'m good', 'i\'m great', 'doing well', 'i\'m fine'],
+        },
+        'reply': {
+            'ar': '😊 يسعدني سماع ذلك! السعادة معدية 😄 هل يمكنني مساعدتك في شيء اليوم؟',
+            'fr': '😊 Ça fait plaisir d\'entendre ça ! La bonne humeur est contagieuse 😄 Puis-je vous aider avec quelque chose ?',
+            'en': '😊 That\'s great to hear! Happiness is contagious 😄 Can I help you with anything today?',
+        },
+    },
+    # I have a problem / issue
+    {
+        'kw': {
+            'ar': ['عندي مشكلة', 'في مشكلة', 'ما قادر', 'ما يشتغل', 'خطأ', 'مشكلة في'],
+            'fr': ['j\'ai un problème', 'ça ne marche pas', 'il y a un problème', 'erreur', 'problème avec'],
+            'en': ['i have a problem', 'there\'s an issue', 'something is wrong', 'it\'s not working', 'error', 'problem with'],
+        },
+        'reply': {
+            'ar': '😟 أنا آسف لسماع ذلك! سأساعدك في حل المشكلة.\n\nأخبرني بالتفصيل ما الذي يحدث وسأبذل قصارى جهدي لمساعدتك 💪',
+            'fr': '😟 Je suis désolé d\'entendre ça ! Je vais vous aider à résoudre ce problème.\n\nDites-moi en détail ce qui se passe et je ferai de mon mieux pour vous aider 💪',
+            'en': '😟 I\'m sorry to hear that! Let\'s get this sorted out together.\n\nTell me in detail what\'s happening and I\'ll do my best to help you 💪',
         },
     },
     # Please / need help
     {
         'kw': {
-            'ar': ['ساعدني', 'محتاج مساعدة', 'ابي مساعدة', 'اريد مساعدة'],
-            'fr': ['aidez-moi', 'j\'ai besoin d\'aide', 'pouvez-vous m\'aider', 'je ne sais pas'],
-            'en': ['help me', 'i need help', 'can you help', 'please help', 'i don\'t know'],
+            'ar': ['ساعدني', 'محتاج مساعدة', 'ابي مساعدة', 'اريد مساعدة', 'ابغى مساعدة'],
+            'fr': ['aidez-moi', 'j\'ai besoin d\'aide', 'pouvez-vous m\'aider', 'je ne sais pas quoi faire'],
+            'en': ['help me', 'i need help', 'can you help', 'please help', 'i don\'t know what to do'],
         },
         'reply': {
-            'ar': '🙋 بكل سرور! أخبرني بما تحتاجه وسأساعدك فوراً 😊\n\nيمكنني مساعدتك في:\n💰 الرصيد • 💸 التحويل • 📱 الشحن\n🧾 الفواتير • 💵 السحب • 🔑 الرقم السري',
-            'fr': '🙋 Bien sûr ! Dites-moi ce dont vous avez besoin et je vous aiderai immédiatement 😊\n\nJe peux vous aider avec:\n💰 Solde • 💸 Virement • 📱 Recharge\n🧾 Factures • 💵 Retrait • 🔑 Code PIN',
-            'en': '🙋 Of course! Tell me what you need and I\'ll help right away 😊\n\nI can assist with:\n💰 Balance • 💸 Transfer • 📱 Top-up\n🧾 Bills • 💵 Withdrawal • 🔑 PIN',
+            'ar': '🙋 بكل سرور! أنا هنا من أجلك 😊\n\nأخبرني بما تحتاجه وسأساعدك فوراً:\n💰 الرصيد • 💸 التحويل • 📱 الشحن\n🧾 الفواتير • 💵 السحب • 🔑 الرقم السري',
+            'fr': '🙋 Bien sûr, je suis là pour vous ! 😊\n\nDites-moi ce dont vous avez besoin:\n💰 Solde • 💸 Virement • 📱 Recharge\n🧾 Factures • 💵 Retrait • 🔑 Code PIN',
+            'en': '🙋 Of course, I\'m here for you! 😊\n\nTell me what you need:\n💰 Balance • 💸 Transfer • 📱 Top-up\n🧾 Bills • 💵 Withdrawal • 🔑 PIN',
         },
     },
 ]
