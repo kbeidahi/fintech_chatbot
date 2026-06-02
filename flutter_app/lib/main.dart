@@ -874,6 +874,7 @@ class _PinSetupState extends State<PinSetupPage> {
         ],
         const SizedBox(height: 32),
         _PinPad(
+          key: ValueKey(_step),
           title: _step == 'create'
             ? _t('أدخل رقمك السري','Entrez votre code PIN','Enter your PIN')
             : _t('أكّد رقمك السري','Confirmez votre code PIN','Confirm your PIN'),
@@ -1679,7 +1680,7 @@ class _WalletState extends State<WalletPage> {
                   return;
                 }
                 // Ask for PIN before confirming
-                final pin = await showPinSheet(ctx,
+                final pin = await showPinSheet(context,
                   title: _t('أدخل رقمك السري', 'Entrez votre code PIN', 'Enter your PIN'),
                   subtitle: _t('للتأكيد على العملية', 'Pour confirmer l\'opération', 'To confirm the operation'));
                 if (pin == null) return; // user cancelled
