@@ -1023,14 +1023,24 @@ class _LoginState extends State<LoginPage> {
   void _submit() async {
     if (_u.text.isEmpty || _p.text.isEmpty) return;
     setState(() { _loading = true; _error = null; });
-    final ok = await apiService.login(_u.text.trim(), _p.text);
+    final err = await apiService.login(_u.text.trim(), _p.text);
     if (!mounted) return;
-    if (ok) {
+    if (err == null) {
       widget.onSuccess();
     } else {
       setState(() {
         _loading = false;
-        _error = _isAr ? 'اسم المستخدم أو كلمة المرور غير صحيحة' : widget.lang == 'fr' ? 'Identifiants incorrects' : 'Invalid credentials';
+        if (err == 'timeout') {
+          _error = _isAr
+            ? '⏳ الخادم يستيقظ، يرجى المحاولة مجدداً خلال ثوانٍ'
+            : widget.lang == 'fr'
+              ? '⏳ Le serveur démarre, réessayez dans quelques secondes'
+              : '⏳ Server is starting up, please try again in a few seconds';
+        } else if (err == 'invalid') {
+          _error = _isAr ? 'اسم المستخدم أو كلمة المرور غير صحيحة' : widget.lang == 'fr' ? 'Identifiants incorrects' : 'Invalid username or password';
+        } else {
+          _error = _isAr ? 'خطأ في الاتصال، حاول مجدداً' : widget.lang == 'fr' ? 'Erreur de connexion, réessayez' : 'Connection error, please try again';
+        }
       });
     }
   }

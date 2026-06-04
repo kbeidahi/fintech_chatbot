@@ -14,8 +14,8 @@ class ApiService {
   ApiService() {
     _dio = Dio(BaseOptions(
       baseUrl: _baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 15),
+      connectTimeout: const Duration(seconds: 60),
+      receiveTimeout: const Duration(seconds: 60),
       headers: {'Content-Type': 'application/json'},
     ));
 
@@ -51,7 +51,8 @@ class ApiService {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
-  Future<bool> login(String username, String password) async {
+  // Returns null on success, or an error key: 'timeout' | 'invalid' | 'error'
+  Future<String?> login(String username, String password) async {
     try {
       await logout();
       final cleanUsername = username.trim();
@@ -61,22 +62,25 @@ class ApiService {
       });
       final access = res.data['access'] as String?;
       final refresh = res.data['refresh'] as String?;
-      if (access == null || refresh == null) return false;
+      if (access == null || refresh == null) return 'error';
       await _storage.write(key: 'access_token', value: access);
       await _storage.write(key: 'refresh_token', value: refresh);
-
-      final profile = await getProfile();
-      if (profile == null ||
-          (profile['username'] != cleanUsername &&
-              profile['email'] != cleanUsername)) {
-        await logout();
-        return false;
+      return null;
+    } on DioException catch (e) {
+      await logout();
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.connectionError) {
+        return 'timeout';
       }
-
-      return true;
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 400) {
+        return 'invalid';
+      }
+      return 'error';
     } catch (_) {
       await logout();
-      return false;
+      return 'error';
     }
   }
 
