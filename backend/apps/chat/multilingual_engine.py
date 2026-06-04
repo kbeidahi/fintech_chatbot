@@ -128,9 +128,9 @@ ACTION_RESPONSES = {
         'en': '✅ Transfer successful!\n• Amount: {amount} MRU\n• To: {receiver}\n• New balance: {balance} MRU',
     },
     'transfer_need_info': {
-        'ar': 'لتحويل الأموال أرسل:\n**حول [المبلغ] إلى [اسم المستخدم]**\nمثال: حول 500 إلى ahmed',
-        'fr': 'Pour virer, tapez:\n**virer [montant] à [utilisateur]**\nEx: virer 500 à ahmed',
-        'en': 'To transfer, type:\n**transfer [amount] to [username]**\nEx: transfer 500 to ahmed',
+        'ar': 'لتحويل الأموال أرسل:\n**حول [المبلغ] إلى [رقم الهاتف]**\nمثال: حول 500 إلى 22334455',
+        'fr': 'Pour virer, tapez:\n**virer [montant] à [numéro]**\nEx: virer 500 à 22334455',
+        'en': 'To transfer, type:\n**transfer [amount] to [phone number]**\nEx: transfer 500 to 22334455',
     },
     'topup_success': {
         'ar': '✅ تم الشحن بنجاح!\n• الرقم: {phone}\n• المبلغ: {amount} MRU\n• رصيدك الجديد: {balance} MRU',
@@ -168,9 +168,9 @@ ACTION_RESPONSES = {
         'en': '❌ Insufficient balance\n• Your balance: {balance} MRU',
     },
     'user_not_found': {
-        'ar': '❌ المستخدم **{username}** غير موجود.\nتحقق من اسم المستخدم وحاول مرة أخرى.',
-        'fr': '❌ L\'utilisateur **{username}** introuvable.\nVérifiez le nom et réessayez.',
-        'en': '❌ User **{username}** not found.\nCheck the username and try again.',
+        'ar': '❌ لا يوجد حساب برقم الهاتف **{username}**.\nتحقق من الرقم وحاول مرة أخرى.',
+        'fr': '❌ Aucun compte avec le numéro **{username}**.\nVérifiez le numéro et réessayez.',
+        'en': '❌ No account found with phone number **{username}**.\nCheck the number and try again.',
     },
 }
 
@@ -263,7 +263,7 @@ INTENTS:
   general intent  : general_question
 
 PARAMS to extract (only for action type):
-  transfer      : {"amount": <number>, "recipient": "<username>"}
+  transfer      : {"amount": <number>, "recipient": "<phone_number>"}
   topup         : {"amount": <number>, "phone": "<phone_number>"}
   bill_payment  : {"amount": <number>, "bill_type": "<type>", "reference": "<id>"}
   withdrawal    : {"amount": <number>}
@@ -274,16 +274,16 @@ PARAMS to extract (only for action type):
 LANG: detect from the user message (ar=Arabic, fr=French, en=English)
 
 EXAMPLES:
-"transfer 500 to ahmed"           → {"type":"action","intent":"transfer","params":{"amount":500,"recipient":"ahmed"},"lang":"en"}
+"transfer 500 to 22334455"        → {"type":"action","intent":"transfer","params":{"amount":500,"recipient":"22334455"},"lang":"en"}
 "I want to send money to my friend" → {"type":"action","intent":"transfer","params":{},"lang":"en"}
 "how do I transfer money?"        → {"type":"inquiry","intent":"transfer_info","params":{},"lang":"en"}
 "what's my balance?"              → {"type":"action","intent":"balance_check","params":{},"lang":"en"}
 "how can I check my balance?"     → {"type":"inquiry","intent":"balance_info","params":{},"lang":"en"}
-"حول 500 إلى ahmed"               → {"type":"action","intent":"transfer","params":{"amount":500,"recipient":"ahmed"},"lang":"ar"}
+"حول 500 إلى 22334455"            → {"type":"action","intent":"transfer","params":{"amount":500,"recipient":"22334455"},"lang":"ar"}
 "كيف أحول الأموال؟"               → {"type":"inquiry","intent":"transfer_info","params":{},"lang":"ar"}
 "اشحن هاتف 22334455 بـ 100"       → {"type":"action","intent":"topup","params":{"amount":100,"phone":"22334455"},"lang":"ar"}
 "comment faire un virement?"      → {"type":"inquiry","intent":"transfer_info","params":{},"lang":"fr"}
-"virer 500 à ahmed"               → {"type":"action","intent":"transfer","params":{"amount":500,"recipient":"ahmed"},"lang":"fr"}
+"virer 500 à 22334455"            → {"type":"action","intent":"transfer","params":{"amount":500,"recipient":"22334455"},"lang":"fr"}
 "merci"                           → {"type":"social","intent":"thanks","params":{},"lang":"fr"}
 "bonjour"                         → {"type":"social","intent":"greeting","params":{},"lang":"fr"}
 "what is bitcoin?"                → {"type":"general","intent":"general_question","params":{},"lang":"en"}
@@ -494,9 +494,9 @@ INQUIRY_ANSWERS = {
         'en': '💰 To check your balance:\n\n1️⃣ Open the app\n2️⃣ Tap the "Wallet" tab at the bottom\n3️⃣ Your balance appears instantly\n\n✅ Balance updates in real-time with every transaction.',
     },
     'transfer_info': {
-        'ar': '💸 لتحويل الأموال:\n\n1️⃣ اضغط على "تحويل" في المحفظة\n2️⃣ أدخل اسم المستخدم المستلم\n3️⃣ أدخل المبلغ\n4️⃣ أدخل رقمك السري للتأكيد\n\n✅ التحويل فوري!\n⚠️ تحقق من اسم المستلم قبل التأكيد.',
-        'fr': '💸 Pour faire un virement:\n\n1️⃣ Appuyez sur "Virement" dans le Portefeuille\n2️⃣ Entrez le nom d\'utilisateur du destinataire\n3️⃣ Entrez le montant\n4️⃣ Confirmez avec votre code PIN\n\n✅ Virement instantané!\n⚠️ Vérifiez bien le destinataire avant de confirmer.',
-        'en': '💸 To transfer money:\n\n1️⃣ Tap "Transfer" in the Wallet\n2️⃣ Enter the recipient\'s username\n3️⃣ Enter the amount\n4️⃣ Confirm with your PIN\n\n✅ Transfer is instant!\n⚠️ Double-check the recipient before confirming.',
+        'ar': '💸 لتحويل الأموال:\n\n1️⃣ اضغط على "تحويل" في المحفظة\n2️⃣ أدخل رقم هاتف المستلم\n3️⃣ أدخل المبلغ\n4️⃣ أدخل رقمك السري للتأكيد\n\n✅ التحويل فوري!\n⚠️ تحقق من رقم المستلم قبل التأكيد.',
+        'fr': '💸 Pour faire un virement:\n\n1️⃣ Appuyez sur "Virement" dans le Portefeuille\n2️⃣ Entrez le numéro de téléphone du destinataire\n3️⃣ Entrez le montant\n4️⃣ Confirmez avec votre code PIN\n\n✅ Virement instantané!\n⚠️ Vérifiez bien le numéro avant de confirmer.',
+        'en': '💸 To transfer money:\n\n1️⃣ Tap "Transfer" in the Wallet\n2️⃣ Enter the recipient\'s phone number\n3️⃣ Enter the amount\n4️⃣ Confirm with your PIN\n\n✅ Transfer is instant!\n⚠️ Double-check the phone number before confirming.',
     },
     'topup_info': {
         'ar': '📱 لشحن الهاتف:\n\n1️⃣ اضغط على "شحن" في المحفظة\n2️⃣ اختر الشبكة (موريتل / شنقيتل / ماتل)\n3️⃣ أدخل رقم الهاتف\n4️⃣ أدخل المبلغ\n5️⃣ أكّد بالرقم السري\n\n✅ الشحن فوري!',
@@ -586,13 +586,13 @@ class MultilingualIntentEngine:
             amount = extract_amount(norm)
 
         if intent == 'transfer':
-            recipient = params.get('recipient') or extract_username(norm)
+            recipient = params.get('recipient') or extract_phone(norm)
             if not recipient or not amount:
                 return {'answer': action_response('transfer_need_info', lang),
                         'intent': 'transfer_info', 'lang': lang, 'source': 'action_guide'}
             try:
                 User = get_user_model()
-                receiver = User.objects.get(username=recipient)
+                receiver = User.objects.get(phone=recipient)
             except Exception:
                 return {'answer': action_response('user_not_found', lang, username=recipient),
                         'intent': 'transfer_failed', 'lang': lang, 'source': 'action'}
@@ -738,10 +738,10 @@ class MultilingualIntentEngine:
                 err = self._check_pin(user, pin, lang)
                 if err: return err
                 amount = extract_amount(message)
-                username = extract_username(message)
+                username = extract_phone(message)
                 if amount and username:
                     try:
-                        receiver = User.objects.get(username=username)
+                        receiver = User.objects.get(phone=username)
                         success, msg, txn = transfer_funds(user, receiver, amount)
                         wallet = Wallet.get_or_create_for_user(user)
                         if success:
