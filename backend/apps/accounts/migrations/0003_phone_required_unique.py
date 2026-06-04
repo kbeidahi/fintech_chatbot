@@ -14,9 +14,9 @@ class Migration(migrations.Migration):
             name='phone',
             field=models.CharField(max_length=20, unique=True, blank=True, null=True, default=None),
         ),
-        # Step 2: set existing blank phones to NULL to avoid unique constraint violation
+        # Step 2: delete users with no phone (can't send/receive money anyway)
         migrations.RunSQL(
-            "UPDATE accounts_user SET phone = NULL WHERE phone = '' OR phone IS NULL;",
+            "DELETE FROM accounts_user WHERE phone IS NULL OR phone = '';",
             reverse_sql=migrations.RunSQL.noop,
         ),
     ]
