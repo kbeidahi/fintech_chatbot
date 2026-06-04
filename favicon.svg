@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1B8A4A"/>
+      <stop offset="100%" style="stop-color:#00C853"/>
+    </linearGradient>
+    <clipPath id="r">
+      <rect width="64" height="64" rx="14" ry="14"/>
+    </clipPath>
+  </defs>
+  <rect width="64" height="64" rx="14" ry="14" fill="url(#g)"/>
+  <!-- sparkle / auto_awesome star -->
+  <g clip-path="url(#r)" fill="white">
+    <!-- center star -->
+    <polygon points="32,14 34.5,27.5 48,30 34.5,32.5 32,46 29.5,32.5 16,30 29.5,27.5" opacity="1"/>
+    <!-- small top-right sparkle -->
+    <polygon points="47,10 48,15 53,16 48,17 47,22 46,17 41,16 46,15" opacity="0.85"/>
+    <!-- small bottom-left sparkle -->
+    <polygon points="17,42 18,46 22,47 18,48 17,52 16,48 12,47 16,46" opacity="0.75"/>
+  </g>
+</svg>

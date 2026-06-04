@@ -1,0 +1,14 @@
+/*
+  Cross-Origin-Embedder-Policy: credentialless
+  Cross-Origin-Opener-Policy: same-origin
+
+/*.wasm
+  Content-Type: application/wasm
+  Cross-Origin-Resource-Policy: cross-origin
+
+/*.js
+  Content-Type: application/javascript
+
+/canvaskit/*
+  Cross-Origin-Resource-Policy: cross-origin
+  Access-Control-Allow-Origin: *
