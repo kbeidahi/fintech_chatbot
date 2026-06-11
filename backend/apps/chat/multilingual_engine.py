@@ -14,9 +14,11 @@ from decimal import Decimal, InvalidOperation
 from difflib import SequenceMatcher
 from urllib.parse import quote
 from typing import Optional
+from datetime import date
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db.models import Sum, Q
 
 from apps.faq.multilingual_faq import MULTILINGUAL_FAQ
 from apps.wallet.models import Wallet, transfer_funds, process_payment, Transaction
@@ -95,6 +97,104 @@ def extract_bill_type(text: str) -> str:
     if any(w in text_lower for w in ['انترنت', 'internet']):
         return 'internet'
     return 'general'
+
+
+def get_monthly_stats(user) -> dict:
+    """Return income, outcome and per-type breakdown for the current calendar month."""
+    today = date.today()
+    qs = Transaction.objects.filter(
+        status=Transaction.STATUS_SUCCESS,
+        created_at__year=today.year,
+        created_at__month=today.month,
+    )
+
+    # Income: transactions where this user is the receiver
+    income_qs = qs.filter(receiver=user)
+    income_total = income_qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    income_breakdown = {
+        row['transaction_type']: row['s']
+        for row in income_qs.values('transaction_type').annotate(s=Sum('amount'))
+    }
+
+    # Outcome: transactions where this user is the sender
+    outcome_qs = qs.filter(sender=user)
+    outcome_total = outcome_qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    outcome_breakdown = {
+        row['transaction_type']: row['s']
+        for row in outcome_qs.values('transaction_type').annotate(s=Sum('amount'))
+    }
+
+    return {
+        'month': today.strftime('%B %Y'),
+        'income_total': income_total,
+        'income_breakdown': income_breakdown,
+        'outcome_total': outcome_total,
+        'outcome_breakdown': outcome_breakdown,
+    }
+
+
+_TYPE_LABELS = {
+    'transfer': {'ar': 'تحويل', 'fr': 'Virement', 'en': 'Transfer'},
+    'deposit': {'ar': 'إيداع', 'fr': 'Dépôt', 'en': 'Deposit'},
+    'withdrawal': {'ar': 'سحب نقدي', 'fr': 'Retrait', 'en': 'Cash withdrawal'},
+    'phone_topup': {'ar': 'شحن هاتف', 'fr': 'Recharge', 'en': 'Phone top-up'},
+    'bill_payment': {'ar': 'فاتورة', 'fr': 'Facture', 'en': 'Bill payment'},
+    'purchase': {'ar': 'شراء', 'fr': 'Achat', 'en': 'Purchase'},
+    'gimtel': {'ar': 'GIMTEL', 'fr': 'GIMTEL', 'en': 'GIMTEL'},
+}
+
+
+def _format_monthly_stats(stats: dict, lang: str, show: str = 'all') -> str:
+    """Format monthly stats into a readable chatbot message.
+    show: 'all' | 'income' | 'outcome'
+    """
+    month = stats['month']
+    lines = []
+
+    if lang == 'ar':
+        lines.append(f'📊 **إحصائيات شهر {month}**\n')
+    elif lang == 'fr':
+        lines.append(f'📊 **Statistiques de {month}**\n')
+    else:
+        lines.append(f'📊 **Statistics for {month}**\n')
+
+    def breakdown_lines(bd: dict, emoji: str) -> list:
+        result = []
+        for t_type, amount in sorted(bd.items(), key=lambda x: -x[1]):
+            label = _TYPE_LABELS.get(t_type, {}).get(lang, t_type)
+            result.append(f'  {emoji} {label}: **{amount:,.2f} MRU**')
+        return result
+
+    if show in ('all', 'income'):
+        if lang == 'ar':
+            lines.append(f'💚 **الدخل الشهري: {stats["income_total"]:,.2f} MRU**')
+        elif lang == 'fr':
+            lines.append(f'💚 **Revenus du mois: {stats["income_total"]:,.2f} MRU**')
+        else:
+            lines.append(f'💚 **Monthly income: {stats["income_total"]:,.2f} MRU**')
+        if stats['income_breakdown']:
+            lines += breakdown_lines(stats['income_breakdown'], '↗️')
+        else:
+            no_income = {'ar': '  لا توجد إيرادات هذا الشهر', 'fr': '  Aucun revenu ce mois', 'en': '  No income this month'}
+            lines.append(no_income[lang])
+
+    if show == 'all':
+        lines.append('')
+
+    if show in ('all', 'outcome'):
+        if lang == 'ar':
+            lines.append(f'🔴 **إجمالي المصروفات: {stats["outcome_total"]:,.2f} MRU**')
+        elif lang == 'fr':
+            lines.append(f'🔴 **Dépenses du mois: {stats["outcome_total"]:,.2f} MRU**')
+        else:
+            lines.append(f'🔴 **Monthly expenses: {stats["outcome_total"]:,.2f} MRU**')
+        if stats['outcome_breakdown']:
+            lines += breakdown_lines(stats['outcome_breakdown'], '↘️')
+        else:
+            no_out = {'ar': '  لا توجد مصروفات هذا الشهر', 'fr': '  Aucune dépense ce mois', 'en': '  No expenses this month'}
+            lines.append(no_out[lang])
+
+    return '\n'.join(lines)
 
 
 def extract_gimtel_app(text: str) -> Optional[str]:
@@ -255,9 +355,11 @@ TYPE definitions:
 - "general" : any other question not covered above
 
 INTENTS:
-  action intents  : balance_check, transfer, topup, bill_payment, withdrawal, gimtel, bpay
+  action intents  : balance_check, transfer, topup, bill_payment, withdrawal, gimtel, bpay,
+                    monthly_stats, monthly_income, monthly_outcome
   inquiry intents : balance_info, transfer_info, topup_info, bill_info, withdrawal_info,
-                    gimtel_info, bpay_info, card_info, cheque_info, pin_info
+                    gimtel_info, bpay_info, card_info, cheque_info, pin_info,
+                    monthly_stats_info, monthly_income_info, monthly_outcome_info
   social intents  : greeting, thanks, goodbye, how_are_you, compliment, apology,
                     feeling_good, feeling_bad, who_are_you, what_can_you_do, help_request, other_social
   general intent  : general_question
@@ -287,6 +389,14 @@ EXAMPLES:
 "merci"                           → {"type":"social","intent":"thanks","params":{},"lang":"fr"}
 "bonjour"                         → {"type":"social","intent":"greeting","params":{},"lang":"fr"}
 "what is bitcoin?"                → {"type":"general","intent":"general_question","params":{},"lang":"en"}
+"show my monthly stats"           → {"type":"action","intent":"monthly_stats","params":{},"lang":"en"}
+"what did I spend this month?"    → {"type":"action","intent":"monthly_outcome","params":{},"lang":"en"}
+"how much did I earn this month?" → {"type":"action","intent":"monthly_income","params":{},"lang":"en"}
+"إحصائيات شهرية"                  → {"type":"action","intent":"monthly_stats","params":{},"lang":"ar"}
+"ماذا أنفقت هذا الشهر"            → {"type":"action","intent":"monthly_outcome","params":{},"lang":"ar"}
+"statistiques du mois"            → {"type":"action","intent":"monthly_stats","params":{},"lang":"fr"}
+"mes dépenses ce mois"            → {"type":"action","intent":"monthly_outcome","params":{},"lang":"fr"}
+"mes revenus ce mois"             → {"type":"action","intent":"monthly_income","params":{},"lang":"fr"}
 """.strip()
 
 
@@ -441,6 +551,21 @@ ACTION_KEYWORDS = {
         'fr': ['gimtel', 'bankily', 'click', 'sedad', 'bamis'],
         'en': ['gimtel', 'bankily', 'click', 'sedad', 'bamis'],
     },
+    'monthly_stats': {
+        'ar': ['إحصائيات شهرية', 'احصائيات الشهر', 'تقرير شهري', 'ملخص شهري'],
+        'fr': ['statistiques du mois', 'bilan mensuel', 'rapport mensuel', 'résumé du mois'],
+        'en': ['monthly stats', 'monthly statistics', 'monthly report', 'monthly summary'],
+    },
+    'monthly_income': {
+        'ar': ['كم استلمت', 'دخل الشهر', 'ما استلمت', 'ايراداتي'],
+        'fr': ['mes revenus ce mois', 'revenus du mois', 'combien reçu'],
+        'en': ['my income this month', 'monthly income', 'how much received', 'income this month'],
+    },
+    'monthly_outcome': {
+        'ar': ['ماذا انفقت', 'مصروفاتي', 'ما انفقت هذا الشهر', 'مصاريف الشهر'],
+        'fr': ['mes dépenses ce mois', 'dépenses du mois', 'combien dépensé'],
+        'en': ['my expenses this month', 'monthly expenses', 'what did i spend', 'spending this month'],
+    },
 }
 
 
@@ -476,8 +601,8 @@ def detect_action(norm: str, lang: str) -> Optional[str]:
         kws = lang_kws.get(lang, [])
         for kw in kws:
             if kw in norm:
-                # Balance is special — no amount needed
-                if action == 'balance':
+                # These actions need no amount
+                if action in ('balance', 'monthly_stats', 'monthly_income', 'monthly_outcome'):
                     return action
                 # For all others, require a number (amount) in the message
                 if re.search(r'\b\d+\b', norm):
@@ -538,6 +663,21 @@ INQUIRY_ANSWERS = {
         'fr': '🔑 À propos du code PIN:\n\n• Requis pour toutes les opérations\n• Ne le partagez jamais\n\nPour le changer:\nParamètres → Sécurité → "Changer le PIN"\n\nPIN oublié?\nÉcran connexion → "Mot de passe oublié" → email\n\n⚠️ Nous ne vous demanderons JAMAIS votre PIN.',
         'en': '🔑 About your PIN:\n\n• Required for all financial operations\n• Never share it with anyone\n\nTo change it:\nSettings → Security → "Change PIN"\n\nForgot your PIN?\nLogin screen → "Forgot password" → enter your email\n\n⚠️ We will NEVER ask for your PIN.',
     },
+    'monthly_stats_info': {
+        'ar': '📊 لعرض إحصائياتك الشهرية اكتب:\n\n**"إحصائيات شهرية"** أو **"ماذا أنفقت هذا الشهر"**\n\nستظهر لك:\n💚 إجمالي الدخل هذا الشهر\n🔴 إجمالي المصروفات\n📋 تفصيل المصروفات حسب النوع',
+        'fr': '📊 Pour voir vos statistiques mensuelles, tapez:\n\n**"statistiques du mois"** ou **"mes dépenses ce mois"**\n\nVous verrez:\n💚 Total des revenus ce mois\n🔴 Total des dépenses\n📋 Détail par type de transaction',
+        'en': '📊 To view your monthly statistics, type:\n\n**"monthly stats"** or **"what did I spend this month"**\n\nYou\'ll see:\n💚 Total income this month\n🔴 Total expenses\n📋 Breakdown by transaction type',
+    },
+    'monthly_income_info': {
+        'ar': '💚 لمعرفة دخلك الشهري اكتب:\n**"كم استلمت هذا الشهر"**\n\nسيظهر لك إجمالي المبالغ التي استلمتها هذا الشهر مع تفصيل المصدر.',
+        'fr': '💚 Pour connaître vos revenus du mois, tapez:\n**"mes revenus ce mois"**\n\nVous verrez le total reçu ce mois avec le détail par source.',
+        'en': '💚 To see your monthly income, type:\n**"my income this month"**\n\nYou\'ll see the total received this month with a breakdown by source.',
+    },
+    'monthly_outcome_info': {
+        'ar': '🔴 لمعرفة مصروفاتك الشهرية اكتب:\n**"ماذا أنفقت هذا الشهر"**\n\nسيظهر لك إجمالي المصروفات مع تفصيل حسب النوع (تحويلات، فواتير، شحن...).',
+        'fr': '🔴 Pour connaître vos dépenses du mois, tapez:\n**"mes dépenses ce mois"**\n\nVous verrez le total dépensé avec le détail par type (virements, factures, recharges...).',
+        'en': '🔴 To see your monthly expenses, type:\n**"my expenses this month"**\n\nYou\'ll see the total spent with a breakdown by type (transfers, bills, top-ups...).',
+    },
 }
 
 
@@ -569,6 +709,12 @@ class MultilingualIntentEngine:
             wallet = Wallet.get_or_create_for_user(user)
             return {'answer': action_response('balance_result', lang, balance=wallet.balance, currency=wallet.currency),
                     'intent': 'check_balance', 'action': 'balance', 'lang': lang, 'source': 'action'}
+
+        if intent in ('monthly_stats', 'monthly_income', 'monthly_outcome'):
+            show = 'all' if intent == 'monthly_stats' else ('income' if intent == 'monthly_income' else 'outcome')
+            stats = get_monthly_stats(user)
+            return {'answer': _format_monthly_stats(stats, lang, show=show),
+                    'intent': intent, 'action': 'stats', 'lang': lang, 'source': 'action'}
 
         # All other actions need PIN
         err = self._check_pin(user, pin, lang)
@@ -876,6 +1022,15 @@ class MultilingualIntentEngine:
                                                       balance=wallet.balance),
                             'intent': 'gimtel_failed', 'lang': lang, 'source': 'action',
                         }
+
+            elif action in ('monthly_stats', 'monthly_income', 'monthly_outcome'):
+                show = 'all' if action == 'monthly_stats' else ('income' if action == 'monthly_income' else 'outcome')
+                stats = get_monthly_stats(user)
+                return {
+                    'answer': _format_monthly_stats(stats, lang, show=show),
+                    'intent': action, 'action': 'stats',
+                    'lang': lang, 'source': 'action',
+                }
 
         # ════════════════════════════════════════════════════════════════════
         # LAYER 3 — FAQ keyword matching (offline fallback)
