@@ -237,6 +237,7 @@ def sso_exchange(request):
         user.save(update_fields=["email"])
 
     tokens = _token_payload_for_user(user)
+    tokens['is_new_user'] = _
     return Response(tokens)
 
 
