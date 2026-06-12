@@ -7,6 +7,7 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes as pc
+from .models import SsoPin
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -213,6 +214,20 @@ class ResetPasswordView(generics.GenericAPIView):
         user.set_password(new_password)
         user.save(update_fields=["password"])
         return Response({"message": "Password reset successfully. You can now log in."})
+
+
+@api_view(["GET", "POST"])
+@pc([permissions.AllowAny])
+def sso_pin_view(request):
+    """GET ?sub=xxx → {has_pin: bool}   POST {sub} → saves pin flag."""
+    if request.method == "GET":
+        sub = request.query_params.get("sub", "").strip()
+        return Response({"has_pin": SsoPin.objects.filter(sub=sub).exists()})
+    sub = request.data.get("sub", "").strip()
+    if not sub:
+        return Response({"error": "sub required"}, status=400)
+    SsoPin.objects.get_or_create(sub=sub)
+    return Response({"ok": True})
 
 
 @api_view(["POST"])

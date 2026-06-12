@@ -538,16 +538,44 @@ class _FinAssistAppState extends State<FinAssistApp> {
   String _lang = 'fr';
   String _screen = 'login';
   int _tab = 0; // 0=chat, 1=wallet
+  String _ssoSub = '';
+  bool _ssoLoading = false;
+  String? _ssoError;
 
   @override
   void initState() {
     super.initState();
+    if (ssoService.hasPendingCallback) {
+      setState(() => _ssoLoading = true);
+    }
     _checkSsoCallback();
   }
 
   Future<void> _checkSsoCallback() async {
     final userInfo = await ssoService.checkWebCallback();
-    if (userInfo != null && mounted) _nav('main');
+    if (!mounted) return;
+    if (userInfo == null) {
+      setState(() => _ssoLoading = false);
+      return;
+    }
+    final error = userInfo['__error'] as String?;
+    if (error != null) {
+      setState(() { _ssoLoading = false; _ssoError = error; });
+      return;
+    }
+    await _afterSsoLogin(userInfo);
+  }
+
+  Future<void> _afterSsoLogin(Map<String, dynamic> userInfo) async {
+    final sub = userInfo['sub']?.toString() ?? '';
+    final hasPin = await ssoService.hasPin(sub);
+    if (!mounted) return;
+    setState(() {
+      _ssoLoading = false;
+      _ssoError = null;
+      _ssoSub = sub;
+      _screen = hasPin ? 'main' : 'sso_pin_setup';
+    });
   }
 
   void _setLang(String l) => setState(() => _lang = l);
@@ -568,6 +596,36 @@ class _FinAssistAppState extends State<FinAssistApp> {
   );
 
   Widget _buildScreen() {
+    if (_ssoLoading) {
+      return Scaffold(
+        backgroundColor: C.navy,
+        body: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          CircularProgressIndicator(color: C.gold),
+          const SizedBox(height: 20),
+          Text('Connexion SSO...', style: GoogleFonts.dmSans(color: C.muted, fontSize: 14)),
+        ])),
+      );
+    }
+    if (_ssoError != null) {
+      return Scaffold(
+        backgroundColor: C.navy,
+        body: Center(child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.error_outline, color: C.error, size: 48),
+            const SizedBox(height: 16),
+            Text('SSO Error', style: GoogleFonts.dmSans(color: C.error, fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            SelectableText(_ssoError!, style: GoogleFonts.dmSans(color: C.muted, fontSize: 11), textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            GestureDetector(
+              onTap: () => setState(() { _ssoError = null; }),
+              child: Text('Retour', style: GoogleFonts.dmSans(color: C.gold, fontSize: 14, decoration: TextDecoration.underline)),
+            ),
+          ]),
+        )),
+      );
+    }
     switch (_screen) {
       case 'pin_setup':
         return PinSetupPage(lang: _lang, onDone: () => _nav('main'));
@@ -575,6 +633,12 @@ class _FinAssistAppState extends State<FinAssistApp> {
         return RegisterPage(lang: _lang, onLangChange: _setLang, onSuccess: _login, onLogin: () => _nav('login'));
       case 'history':
         return HistoryPage(lang: _lang, onBack: () => _nav('main'));
+      case 'sso_pin_setup':
+        return SsoPinSetupPage(
+          lang: _lang,
+          sub: _ssoSub,
+          onDone: () => _nav('main'),
+        );
       case 'main':
         return _MainShell(
           lang: _lang,
@@ -585,7 +649,13 @@ class _FinAssistAppState extends State<FinAssistApp> {
           onLogout: _logout,
         );
       default:
-        return LoginPage(lang: _lang, onLangChange: _setLang, onSuccess: _login, onRegister: () => _nav('register'));
+        return LoginPage(
+          lang: _lang,
+          onLangChange: _setLang,
+          onSuccess: _login,
+          onRegister: () => _nav('register'),
+          onSsoSuccess: (info) => _afterSsoLogin(info),
+        );
     }
   }
 }
@@ -1025,7 +1095,8 @@ Widget _appHeader(String lang, String title, void Function(String) onLangChange,
 class LoginPage extends StatefulWidget {
   final String lang; final void Function(String) onLangChange;
   final VoidCallback onSuccess, onRegister;
-  const LoginPage({super.key, required this.lang, required this.onLangChange, required this.onSuccess, required this.onRegister});
+  final void Function(Map<String, dynamic>)? onSsoSuccess;
+  const LoginPage({super.key, required this.lang, required this.onLangChange, required this.onSuccess, required this.onRegister, this.onSsoSuccess});
   @override State<LoginPage> createState() => _LoginState();
 }
 
@@ -1040,7 +1111,11 @@ class _LoginState extends State<LoginPage> {
     final userInfo = await ssoService.login();
     if (!mounted) return;
     if (userInfo != null) {
-      widget.onSuccess();
+      if (widget.onSsoSuccess != null) {
+        widget.onSsoSuccess!(userInfo);
+      } else {
+        widget.onSuccess();
+      }
     } else {
       setState(() {
         _ssoLoading = false;
@@ -2225,6 +2300,151 @@ class _DotsState extends State<_Dots> with SingleTickerProviderStateMixin {
         margin: const EdgeInsets.symmetric(horizontal: 2.5), width: 7, height: 7,
         decoration: BoxDecoration(shape: BoxShape.circle, color: C.gold.withOpacity(0.4 + t * 0.6))));
     })));
+}
+
+// ── SSO PIN Setup Page (first time SSO login) ─────────────────────────────────
+class SsoPinSetupPage extends StatefulWidget {
+  final String lang, sub;
+  final VoidCallback onDone;
+  const SsoPinSetupPage({super.key, required this.lang, required this.sub, required this.onDone});
+  @override State<SsoPinSetupPage> createState() => _SsoPinSetupPageState();
+}
+
+class _SsoPinSetupPageState extends State<SsoPinSetupPage> {
+  final List<TextEditingController> _ctrl1 = List.generate(4, (_) => TextEditingController());
+  final List<TextEditingController> _ctrl2 = List.generate(4, (_) => TextEditingController());
+  final List<FocusNode> _focus1 = List.generate(4, (_) => FocusNode());
+  final List<FocusNode> _focus2 = List.generate(4, (_) => FocusNode());
+  String? _error;
+  bool _saving = false;
+  bool get _isAr => widget.lang == 'ar';
+  String get _pin1 => _ctrl1.map((c) => c.text).join();
+  String get _pin2 => _ctrl2.map((c) => c.text).join();
+
+  @override
+  void dispose() {
+    for (final c in [..._ctrl1, ..._ctrl2]) c.dispose();
+    for (final f in [..._focus1, ..._focus2]) f.dispose();
+    super.dispose();
+  }
+
+  void _onDigit(List<TextEditingController> ctrl, List<FocusNode> focus, int i, String val) {
+    if (val.length == 1 && i < 3) focus[i + 1].requestFocus();
+    if (val.isEmpty && i > 0) focus[i - 1].requestFocus();
+    setState(() => _error = null);
+  }
+
+  Future<void> _confirm() async {
+    if (_pin1.length < 4) {
+      setState(() => _error = _isAr ? 'أدخل رمز PIN' : widget.lang == 'fr' ? 'Entrez votre PIN' : 'Enter your PIN');
+      return;
+    }
+    if (_pin2.length < 4) {
+      setState(() => _error = _isAr ? 'أكّد رمز PIN' : widget.lang == 'fr' ? 'Confirmez votre PIN' : 'Confirm your PIN');
+      return;
+    }
+    if (_pin1 != _pin2) {
+      setState(() => _error = _isAr ? 'رمزا PIN غير متطابقين' : widget.lang == 'fr' ? 'Les codes PIN ne correspondent pas' : 'PINs do not match');
+      return;
+    }
+    setState(() => _saving = true);
+    await ssoService.savePin(widget.sub);
+    if (mounted) widget.onDone();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: C.navy,
+    body: AppBg(child: SafeArea(child: Column(children: [
+      _appHeader(widget.lang, 'FinAssist', (_) {}, []),
+      Expanded(child: Center(child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 68, height: 68,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(colors: [C.gold, C.goldL]),
+              boxShadow: [BoxShadow(color: C.gold.withOpacity(0.3), blurRadius: 18)],
+            ),
+            child: const Icon(Icons.lock_outline, color: C.navy, size: 32),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            _isAr ? 'إنشاء رمز PIN' : widget.lang == 'fr' ? 'Créer votre code PIN' : 'Create your PIN',
+            style: GoogleFonts.playfairDisplay(color: C.gold, fontSize: 22, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _isAr ? 'أدخل رمز PIN لتأمين حسابك'
+                : widget.lang == 'fr' ? 'Choisissez un code PIN à 4 chiffres'
+                : 'Choose a 4-digit PIN to secure your account',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.dmSans(color: C.muted, fontSize: 13),
+          ),
+          const SizedBox(height: 28),
+          Align(alignment: Alignment.centerLeft, child: Text(
+            _isAr ? 'رمز PIN' : widget.lang == 'fr' ? 'Code PIN' : 'PIN',
+            style: GoogleFonts.dmSans(color: C.muted, fontSize: 11, fontWeight: FontWeight.w600),
+          )),
+          const SizedBox(height: 8),
+          _pinRow(_ctrl1, _focus1),
+          const SizedBox(height: 20),
+          Align(alignment: Alignment.centerLeft, child: Text(
+            _isAr ? 'تأكيد رمز PIN' : widget.lang == 'fr' ? 'Confirmer le PIN' : 'Confirm PIN',
+            style: GoogleFonts.dmSans(color: C.muted, fontSize: 11, fontWeight: FontWeight.w600),
+          )),
+          const SizedBox(height: 8),
+          _pinRow(_ctrl2, _focus2),
+          if (_error != null) ...[
+            const SizedBox(height: 14),
+            Text(_error!, style: GoogleFonts.dmSans(color: C.error, fontSize: 12)),
+          ],
+          const SizedBox(height: 32),
+          GestureDetector(
+            onTap: _saving ? null : _confirm,
+            child: Container(
+              width: double.infinity, height: 52,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [C.gold, C.goldL]),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [BoxShadow(color: C.gold.withOpacity(0.35), blurRadius: 16, offset: const Offset(0, 4))],
+              ),
+              child: Center(child: _saving
+                ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : Text(
+                    _isAr ? 'تأكيد' : widget.lang == 'fr' ? 'Confirmer' : 'Confirm',
+                    style: GoogleFonts.dmSans(color: C.navy, fontSize: 15, fontWeight: FontWeight.w700),
+                  )),
+            ),
+          ),
+        ]),
+      ))),
+    ]))),
+  );
+
+  Widget _pinRow(List<TextEditingController> ctrl, List<FocusNode> focus) =>
+    Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(4, (i) => Container(
+        width: 56, height: 62,
+        margin: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: C.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: ctrl[i].text.isNotEmpty ? C.gold : C.gold.withOpacity(0.2), width: 1.5),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8)],
+        ),
+        child: TextField(
+          controller: ctrl[i], focusNode: focus[i],
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center, obscureText: true, maxLength: 1,
+          style: GoogleFonts.dmSans(color: C.text, fontSize: 22, fontWeight: FontWeight.w700),
+          decoration: const InputDecoration(border: InputBorder.none, counterText: ''),
+          onChanged: (v) => _onDigit(ctrl, focus, i, v),
+        ),
+      )),
+    );
 }
 
 class _Chip extends StatelessWidget {

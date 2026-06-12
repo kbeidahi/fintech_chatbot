@@ -1,6 +1,6 @@
 # apps/accounts/urls.py
 from django.urls import path
-from .views import RegisterView, ProfileView, FindAccountView, ResetPasswordView, PinStatusView, SetPinView, VerifyPinView, sso_token_proxy, sso_userinfo_proxy
+from .views import RegisterView, ProfileView, FindAccountView, ResetPasswordView, PinStatusView, SetPinView, VerifyPinView, sso_token_proxy, sso_userinfo_proxy, sso_pin_view
 
 urlpatterns = [
     path("register/", RegisterView.as_view(), name="register"),
@@ -12,4 +12,5 @@ urlpatterns = [
     path("pin/verify/", VerifyPinView.as_view(), name="pin-verify"),
     path("sso/token/", sso_token_proxy, name="sso-token"),
     path("sso/userinfo/", sso_userinfo_proxy, name="sso-userinfo"),
+    path("sso/pin/", sso_pin_view, name="sso-pin"),
 ]

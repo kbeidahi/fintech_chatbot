@@ -8,9 +8,10 @@ import 'package:http/http.dart' as http;
 
 const _clientId = 'QXgsahJWT1cLODdVL6VoJA6p4b0N5pDZXQ9nF159';
 const _authEndpoint = 'https://sso-backend-6b1e.onrender.com/o/authorize/';
-const _tokenEndpoint = 'https://sso-backend-6b1e.onrender.com/o/token/';
-const _userinfoEndpoint = 'https://sso-backend-6b1e.onrender.com/o/userinfo/';
-const _scopes = 'openid profile email';
+// Token and userinfo go through our own backend proxy to avoid CORS
+const _tokenEndpoint = 'https://fintech-chatbot-api.onrender.com/api/auth/sso/token/';
+const _userinfoEndpoint = 'https://fintech-chatbot-api.onrender.com/api/auth/sso/userinfo/';
+const _scopes = 'openid profile email phone';
 
 String _generateCodeVerifier() {
   final rand = Random.secure();
@@ -50,19 +51,37 @@ Future<Map<String, dynamic>?> platformSsoLogin() async {
   return null; // redirect happens, this line never runs
 }
 
+bool get platformSsoHasPendingCallback {
+  // Check sessionStorage first (captured by index.html script before Flutter boots)
+  if (html.window.sessionStorage.containsKey('oauth_pending_code')) return true;
+  // Fallback: check the live URL
+  return Uri.parse(html.window.location.href).queryParameters.containsKey('code');
+}
+
 Future<Map<String, dynamic>?> handleWebCallback() async {
-  final uri = Uri.parse(html.window.location.href);
-  final code = uri.queryParameters['code'];
+  // Try sessionStorage (captured before Flutter boot by index.html script)
+  String? code = html.window.sessionStorage['oauth_pending_code'];
+  if (code != null) {
+    html.window.sessionStorage.remove('oauth_pending_code');
+  } else {
+    // Fallback: read directly from URL
+    final uri = Uri.parse(html.window.location.href);
+    code = uri.queryParameters['code'];
+    if (code != null) {
+      html.window.history.replaceState(null, '', uri.path);
+    }
+  }
   if (code == null) return null;
 
   final verifier = html.window.sessionStorage['sso_code_verifier'];
   final redirectUri = html.window.sessionStorage['sso_redirect_uri'] ?? _currentRedirectUri();
-  if (verifier == null) return null;
 
-  // Clean the URL (remove ?code= from browser bar)
-  html.window.history.replaceState(null, '', uri.path);
   html.window.sessionStorage.remove('sso_code_verifier');
   html.window.sessionStorage.remove('sso_redirect_uri');
+
+  if (verifier == null) {
+    return {'__error': 'missing_verifier'};
+  }
 
   try {
     final tokenResp = await http.post(
@@ -76,12 +95,13 @@ Future<Map<String, dynamic>?> handleWebCallback() async {
         'code_verifier': verifier,
       },
     );
-    if (tokenResp.statusCode != 200) return null;
+    if (tokenResp.statusCode != 200) {
+      return {'__error': 'token_${tokenResp.statusCode}: ${tokenResp.body}'};
+    }
     final tokens = json.decode(tokenResp.body) as Map<String, dynamic>;
     final accessToken = tokens['access_token'] as String?;
-    if (accessToken == null) return null;
+    if (accessToken == null) return {'__error': 'no_access_token'};
 
-    // Store in sessionStorage (flutter_secure_storage not available on web)
     html.window.sessionStorage['sso_access_token'] = accessToken;
     if (tokens['id_token'] != null) {
       html.window.sessionStorage['sso_id_token'] = tokens['id_token'].toString();
@@ -98,8 +118,8 @@ Future<Map<String, dynamic>?> handleWebCallback() async {
       return json.decode(userResp.body) as Map<String, dynamic>;
     }
     return {'sub': 'unknown'};
-  } catch (_) {
-    return null;
+  } catch (e) {
+    return {'__error': 'exception: $e'};
   }
 }
 
@@ -111,4 +131,12 @@ Future<void> platformSsoLogout() async {
 
 Future<bool> get platformSsoIsLoggedIn async {
   return html.window.sessionStorage.containsKey('sso_access_token');
+}
+
+Future<bool> platformSsoHasPin(String sub) async {
+  return html.window.localStorage.containsKey('sso_pin_$sub');
+}
+
+Future<void> platformSsoSavePin(String sub) async {
+  html.window.localStorage['sso_pin_$sub'] = '1';
 }

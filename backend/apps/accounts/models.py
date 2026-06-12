@@ -30,3 +30,11 @@ class User(AbstractUser):
         if not self.pin_hash:
             return False
         return check_password(raw_pin, self.pin_hash)
+
+
+class SsoPin(models.Model):
+    """Stores whether an SSO user (identified by sub) has set a PIN."""
+    sub = models.CharField(max_length=255, unique=True)
+
+    class Meta:
+        db_table = "accounts_sso_pin"

@@ -8,7 +8,7 @@ const _clientId = 'QXgsahJWT1cLODdVL6VoJA6p4b0N5pDZXQ9nF159';
 const _redirectUrl = 'http://localhost';
 const _discoveryUrl =
     'https://sso-backend-6b1e.onrender.com/.well-known/openid-configuration';
-const _scopes = ['openid', 'profile', 'email'];
+const _scopes = ['openid', 'profile', 'email', 'phone'];
 
 final _appAuth = FlutterAppAuth();
 final _storage = const FlutterSecureStorage();
@@ -66,3 +66,13 @@ Future<bool> get platformSsoIsLoggedIn async {
 
 // No-op on mobile — only used on web
 Future<Map<String, dynamic>?> handleWebCallback() async => null;
+bool get platformSsoHasPendingCallback => false;
+
+Future<bool> platformSsoHasPin(String sub) async {
+  final val = await _storage.read(key: 'sso_pin_$sub');
+  return val != null;
+}
+
+Future<void> platformSsoSavePin(String sub) async {
+  await _storage.write(key: 'sso_pin_$sub', value: '1');
+}
