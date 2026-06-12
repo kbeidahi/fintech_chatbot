@@ -216,6 +216,30 @@ class ResetPasswordView(generics.GenericAPIView):
         return Response({"message": "Password reset successfully. You can now log in."})
 
 
+@api_view(["POST"])
+@pc([permissions.AllowAny])
+def sso_exchange(request):
+    """Create or retrieve a Django User for an SSO identity, return JWT tokens."""
+    sub   = request.data.get("sub", "").strip()
+    email = request.data.get("email", "").strip()
+    name  = request.data.get("name", "").strip()
+    if not sub:
+        return Response({"error": "sub required"}, status=400)
+
+    username = f"sso_{sub[:120]}"
+    user, _ = User.objects.get_or_create(
+        username=username,
+        defaults={"email": email, "first_name": name[:30] if name else ""},
+    )
+    # Update email/name if changed
+    if email and user.email != email:
+        user.email = email
+        user.save(update_fields=["email"])
+
+    tokens = _token_payload_for_user(user)
+    return Response(tokens)
+
+
 @api_view(["GET", "POST"])
 @pc([permissions.AllowAny])
 def sso_pin_view(request):
