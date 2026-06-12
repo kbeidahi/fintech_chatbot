@@ -1,11 +1,11 @@
 {
-    "name": "fintech_chatbot",
-    "short_name": "fintech_chatbot",
+    "name": "FinAssist",
+    "short_name": "FinAssist",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#1B8A4A",
+    "theme_color": "#1B8A4A",
+    "description": "Your Smart Financial Guide",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

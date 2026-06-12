@@ -3,7 +3,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/api_service.dart';
-void main() => runApp(const FinAssistApp());
+import 'services/sso_service.dart';
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const FinAssistApp());
+}
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 class C {
@@ -535,9 +539,20 @@ class _FinAssistAppState extends State<FinAssistApp> {
   String _screen = 'login';
   int _tab = 0; // 0=chat, 1=wallet
 
+  @override
+  void initState() {
+    super.initState();
+    _checkSsoCallback();
+  }
+
+  Future<void> _checkSsoCallback() async {
+    final userInfo = await ssoService.checkWebCallback();
+    if (userInfo != null && mounted) _nav('main');
+  }
+
   void _setLang(String l) => setState(() => _lang = l);
   void _nav(String s) => setState(() => _screen = s);
-  void _logout() { apiService.logout(); _nav('login'); }
+  void _logout() { apiService.logout(); ssoService.logout(); _nav('login'); }
 
   Future<void> _login() async {
     final hasPin = await apiService.hasPinSet();
@@ -1016,9 +1031,27 @@ class LoginPage extends StatefulWidget {
 
 class _LoginState extends State<LoginPage> {
   final _u = TextEditingController(); final _p = TextEditingController();
-  bool _loading = false, _obscure = true; String? _error;
+  bool _loading = false, _ssoLoading = false, _obscure = true; String? _error;
   bool get _isAr => widget.lang == 'ar';
   String t(String k) => T.get(widget.lang, k);
+
+  Future<void> _ssoLogin() async {
+    setState(() { _ssoLoading = true; _error = null; });
+    final userInfo = await ssoService.login();
+    if (!mounted) return;
+    if (userInfo != null) {
+      widget.onSuccess();
+    } else {
+      setState(() {
+        _ssoLoading = false;
+        _error = _isAr
+            ? 'فشل تسجيل الدخول عبر SSO. حاول مرة أخرى.'
+            : widget.lang == 'fr'
+                ? 'Échec de la connexion SSO. Réessayez.'
+                : 'SSO login failed. Please try again.';
+      });
+    }
+  }
 
   void _submit() async {
     if (_u.text.isEmpty || _p.text.isEmpty) return;
@@ -1276,6 +1309,39 @@ class _LoginState extends State<LoginPage> {
             GoldBtn(label: _loading ? (_isAr ? 'جاري الدخول...' : widget.lang == 'fr' ? 'Connexion...' : 'Signing in...') : t('login'),
               loading: _loading, onTap: _submit),
           ])),
+        const SizedBox(height: 16),
+        Row(children: [
+          Expanded(child: Divider(color: C.muted.withOpacity(0.25))),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(_isAr ? 'أو' : widget.lang == 'fr' ? 'ou' : 'or',
+              style: GoogleFonts.dmSans(color: C.muted, fontSize: 12))),
+          Expanded(child: Divider(color: C.muted.withOpacity(0.25))),
+        ]),
+        const SizedBox(height: 16),
+        GestureDetector(
+          onTap: (_loading || _ssoLoading) ? null : _ssoLogin,
+          child: Container(
+            width: double.infinity, height: 52,
+            decoration: BoxDecoration(
+              color: C.surface,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: C.gold.withOpacity(0.4)),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10)],
+            ),
+            child: Center(child: _ssoLoading
+              ? SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: C.gold, strokeWidth: 2.5))
+              : Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.verified_user_outlined, color: C.gold, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    _isAr ? 'تسجيل الدخول عبر SSO'
+                        : widget.lang == 'fr' ? 'Se connecter avec SSO'
+                        : 'Sign in with SSO',
+                    style: GoogleFonts.dmSans(color: C.gold, fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                ])),
+          ),
+        ),
         const SizedBox(height: 20),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Text(t('noAccount'), style: GoogleFonts.dmSans(color: C.muted, fontSize: 13)),
@@ -1317,7 +1383,8 @@ class _RegisterState extends State<RegisterPage> {
     if (registered) {
       loggedIn = await apiService.isLoggedIn;
       if (!loggedIn) {
-        loggedIn = await apiService.login(_u.text.trim(), _p.text);
+        final err = await apiService.login(_u.text.trim(), _p.text);
+        loggedIn = err == null;
       }
     }
     if (!mounted) return;
