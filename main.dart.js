@@ -27141,7 +27141,7 @@ B.cL.F(g,"sso_redirect_uri")
 if(n==null){q=A.a1(["__error","missing_verifier"],t.N,t.z)
 s=1
 break}p=4
-g=A.ev("https://sso-backend-6b1e.onrender.com/o/token/",0,null)
+g=A.ev("https://fintech-chatbot-api.onrender.com/api/auth/sso/token/",0,null)
 e=t.N
 c=A.a1(["Content-Type","application/x-www-form-urlencoded"],e,e)
 s=7
@@ -27164,7 +27164,7 @@ g.toString
 g.setItem("sso_id_token",J.bZ(J.aA(k,"id_token")))}if(J.aA(k,"refresh_token")!=null){g=window.sessionStorage
 g.toString
 g.setItem("sso_refresh_token",J.bZ(J.aA(k,"refresh_token")))}s=8
-return A.D(A.aVW(A.ev("https://sso-backend-6b1e.onrender.com/o/userinfo/",0,null),A.a1(["Authorization","Bearer "+j],e,e)),$async$a_J)
+return A.D(A.aVW(A.ev("https://fintech-chatbot-api.onrender.com/api/auth/sso/userinfo/",0,null),A.a1(["Authorization","Bearer "+j],e,e)),$async$a_J)
 case 8:i=a2
 if(i.b===200){g=i
 g=c.a(B.c8.ef(0,A.azB(A.azd(g.e)).ef(0,g.w)))
