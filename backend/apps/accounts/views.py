@@ -228,9 +228,15 @@ def sso_exchange(request):
             return Response({"error": "sub required"}, status=400)
 
         username = f"sso_{sub[:120]}"
+        # phone is NOT NULL + UNIQUE in DB; use a unique placeholder for SSO users
+        sso_phone = f"sso_{sub[:50]}"
         user, created = User.objects.get_or_create(
             username=username,
-            defaults={"email": email or "", "first_name": (name[:30] if name else "")},
+            defaults={
+                "email": email or "",
+                "first_name": (name[:30] if name else ""),
+                "phone": sso_phone,
+            },
         )
         if not created and email and user.email != email:
             user.email = email
