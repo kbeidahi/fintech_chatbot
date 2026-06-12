@@ -1,10 +1,12 @@
 """Account registration, login, and profile views."""
+import urllib.request, urllib.parse, json as _json
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import update_last_login
 from rest_framework import generics, permissions, serializers
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes as pc
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -211,4 +213,49 @@ class ResetPasswordView(generics.GenericAPIView):
         user.set_password(new_password)
         user.save(update_fields=["password"])
         return Response({"message": "Password reset successfully. You can now log in."})
+
+
+@api_view(["POST"])
+@pc([permissions.AllowAny])
+def sso_token_proxy(request):
+    """Server-side proxy for NovaGard /o/token/ to avoid CORS from the browser."""
+    body = urllib.parse.urlencode({
+        "grant_type":    request.data.get("grant_type", "authorization_code"),
+        "code":          request.data.get("code", ""),
+        "redirect_uri":  request.data.get("redirect_uri", ""),
+        "client_id":     request.data.get("client_id", ""),
+        "code_verifier": request.data.get("code_verifier", ""),
+    }).encode()
+    req = urllib.request.Request(
+        "https://sso-backend-6b1e.onrender.com/o/token/",
+        data=body,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = _json.loads(resp.read())
+            return Response(data)
+    except urllib.error.HTTPError as e:
+        return Response(_json.loads(e.read()), status=e.code)
+    except Exception as exc:
+        return Response({"error": str(exc)}, status=502)
+
+
+@api_view(["GET"])
+@pc([permissions.AllowAny])
+def sso_userinfo_proxy(request):
+    """Server-side proxy for NovaGard /o/userinfo/ to avoid CORS from the browser."""
+    auth = request.headers.get("Authorization", "")
+    req = urllib.request.Request(
+        "https://sso-backend-6b1e.onrender.com/o/userinfo/",
+        headers={"Authorization": auth},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return Response(_json.loads(resp.read()))
+    except urllib.error.HTTPError as e:
+        return Response(_json.loads(e.read()), status=e.code)
+    except Exception as exc:
+        return Response({"error": str(exc)}, status=502)
 
