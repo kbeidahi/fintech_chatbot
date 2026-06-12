@@ -244,6 +244,7 @@ def sso_exchange(request):
 
         tokens = _token_payload_for_user(user)
         tokens['is_new_user'] = created
+        tokens['has_pin'] = bool(user.pin_hash)
         return Response(tokens)
     except Exception as exc:
         import traceback
