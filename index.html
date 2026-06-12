@@ -19,14 +19,35 @@
   <title>FinAssist</title>
   <link rel="manifest" href="manifest.json">
 
-  <!-- Capture OAuth2 ?code= before Flutter/service-worker boots -->
+  <!-- Force service worker update + capture OAuth2 ?code= -->
   <script>
     (function () {
+      // Capture OAuth code before SW can strip query params
       var p = new URLSearchParams(window.location.search);
       var code = p.get('code');
       if (code) {
         sessionStorage.setItem('oauth_pending_code', code);
         window.history.replaceState({}, '', window.location.pathname);
+      }
+
+      // Force SW to skip waiting and activate immediately on update
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(reg) {
+            reg.addEventListener('updatefound', function() {
+              var newWorker = reg.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', function() {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    window.location.reload();
+                  }
+                });
+              }
+            });
+            reg.update();
+          });
+        });
       }
     })();
   </script>
