@@ -220,25 +220,28 @@ class ResetPasswordView(generics.GenericAPIView):
 @pc([permissions.AllowAny])
 def sso_exchange(request):
     """Create or retrieve a Django User for an SSO identity, return JWT tokens."""
-    sub   = request.data.get("sub", "").strip()
-    email = request.data.get("email", "").strip()
-    name  = request.data.get("name", "").strip()
-    if not sub:
-        return Response({"error": "sub required"}, status=400)
+    try:
+        sub   = request.data.get("sub", "").strip()
+        email = request.data.get("email", "").strip()
+        name  = request.data.get("name", "").strip()
+        if not sub:
+            return Response({"error": "sub required"}, status=400)
 
-    username = f"sso_{sub[:120]}"
-    user, _ = User.objects.get_or_create(
-        username=username,
-        defaults={"email": email, "first_name": name[:30] if name else ""},
-    )
-    # Update email/name if changed
-    if email and user.email != email:
-        user.email = email
-        user.save(update_fields=["email"])
+        username = f"sso_{sub[:120]}"
+        user, created = User.objects.get_or_create(
+            username=username,
+            defaults={"email": email or "", "first_name": (name[:30] if name else "")},
+        )
+        if not created and email and user.email != email:
+            user.email = email
+            user.save(update_fields=["email"])
 
-    tokens = _token_payload_for_user(user)
-    tokens['is_new_user'] = _
-    return Response(tokens)
+        tokens = _token_payload_for_user(user)
+        tokens['is_new_user'] = created
+        return Response(tokens)
+    except Exception as exc:
+        import traceback
+        return Response({"error": str(exc), "trace": traceback.format_exc()}, status=500)
 
 
 @api_view(["GET", "POST"])
